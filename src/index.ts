@@ -3,7 +3,6 @@ import ClientD1 from 'knex-cloudflare-d1';
 import { sutando } from 'sutando';
 import { setupRoutes } from './routes'
 
-
 declare module 'hono' {
   interface ContextVariableMap {
   }

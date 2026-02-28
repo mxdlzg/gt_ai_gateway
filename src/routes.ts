@@ -1,11 +1,19 @@
-import { Hono } from 'hono'
-
+import { Hono, Context } from 'hono'
 import {SgUser} from "./model/sgUser";
 import {SgModel} from "./model/sgModel";
 import {SgVendor} from "./model/sgVendor";
 import {SgRecord} from "./model/sgRecord";
 import recordService from "./service/recordService";
 import { chatCompletions } from './web/aiApiEntry'
+
+declare module 'hono' {
+  interface ContextVariableMap {
+  }
+}
+
+export interface Env {
+  DB: D1Database;
+}
 
 export function setupRoutes(app: Hono, mode: 'cloud' | 'local') {
   app.get('/', (c) => {
@@ -20,6 +28,52 @@ export function setupRoutes(app: Hono, mode: 'cloud' | 'local') {
       return c.text('init database')
     }
     return c.json({ message: 'Database initialized' })
+  })
+
+  app.post('/migrate', async (c) => {
+    const { MigrateService } = await import('./service/migrateService')
+    const { SQLiteAdapter, D1Adapter } = await import('./service/dbAdapter')
+
+    if (mode === 'local') {
+      const { join } = await import('path')
+      const DB_PATH = join(process.cwd(), 'local.db')
+      const Database = (await import('better-sqlite3')).default
+
+      const db = new Database(DB_PATH)
+      const adapter = new SQLiteAdapter(db)
+      const migrateService = new MigrateService(adapter)
+      const count = await migrateService.migrate()
+      db.close()
+      return c.json({ success: true, count })
+    } else {
+      const adapter = new D1Adapter(c.env.DB)
+      const migrateService = new MigrateService(adapter)
+      const count = await migrateService.migrate()
+      return c.json({ success: true, count })
+    }
+  })
+
+  app.get('/migrate/status', async (c) => {
+    const { MigrateService } = await import('./service/migrateService')
+    const { SQLiteAdapter, D1Adapter } = await import('./service/dbAdapter')
+
+    if (mode === 'local') {
+      const { join } = await import('path')
+      const DB_PATH = join(process.cwd(), 'local.db')
+      const Database = (await import('better-sqlite3')).default
+
+      const db = new Database(DB_PATH)
+      const adapter = new SQLiteAdapter(db)
+      const migrateService = new MigrateService(adapter)
+      const version = await migrateService.getCurrentVersion()
+      db.close()
+      return c.json({ currentVersion: version })
+    } else {
+      const adapter = new D1Adapter(c.env.DB)
+      const migrateService = new MigrateService(adapter)
+      const version = await migrateService.getCurrentVersion()
+      return c.json({ currentVersion: version })
+    }
   })
 
   app.post('/model/create.json', async (c) => {
