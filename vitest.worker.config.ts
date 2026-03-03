@@ -18,6 +18,15 @@ export default defineConfig({
     },
     // Increase hookTimeout for wrangler dev startup time
     hookTimeout: 120000,
+    // Pass TEST_MODE to forked processes
+    poolOptions: {
+      forks: {
+        execArgv: [],
+        env: {
+          TEST_MODE: 'worker',
+        },
+      },
+    },
   },
   // Environment variables
   env: {

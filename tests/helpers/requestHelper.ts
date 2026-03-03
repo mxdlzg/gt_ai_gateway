@@ -1,5 +1,14 @@
-import { SERVER_CONFIG } from '../config'
 import { fetch } from 'undici'
+import type { SERVER_CONFIG as ServerConfigType } from '../config'
+
+/**
+ * Get server config dynamically to respect TEST_MODE at runtime
+ */
+async function getServerConfig(): Promise<typeof ServerConfigType> {
+  // Dynamic import to ensure TEST_MODE is evaluated at runtime
+  const { SERVER_CONFIG } = await import('../config')
+  return SERVER_CONFIG
+}
 
 /**
  * HTTP Request Helper
@@ -22,7 +31,8 @@ interface RequestResponse {
  * Make a generic HTTP request
  */
 export async function request(endpoint: string, options: RequestOptions = {}): Promise<RequestResponse> {
-  const url = `${SERVER_CONFIG.baseUrl}${endpoint}`
+  const serverConfig = await getServerConfig()
+  const url = `${serverConfig.baseUrl}${endpoint}`
 
   const headers = {
     'Content-Type': 'application/json',
