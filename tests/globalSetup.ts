@@ -64,65 +64,6 @@ function setupAdminUser(): void {
     }
 }
 
-// Run pending migrations for D1 database - worker mode only
-function runPendingMigrations(): void {
-    try {
-        // Get applied migrations
-        const output = runD1Command([
-            "--json",
-            "--command=\"SELECT name FROM _migrations ORDER BY name\"",
-        ]);
-
-        const match = output.match(/\[.*\]/s);
-        const appliedMigrations = match ? JSON.parse(match[0]) : [];
-        const applied = appliedMigrations[0]?.results?.map((r: any) => r.name) || [];
-
-        console.log("[GLOBAL_SETUP] Applied migrations:", applied);
-
-        // Check if user.type column exists
-        const userSchema = runD1Command([
-            "--json",
-            "--command=\"PRAGMA table_info(user)\"",
-        ]);
-        const userHasType = userSchema.includes('"type"');
-
-        // Check if model.enable column exists
-        const modelSchema = runD1Command([
-            "--json",
-            "--command=\"PRAGMA table_info(model)\"",
-        ]);
-        const modelHasEnable = modelSchema.includes('"enable"');
-
-        // Apply migrate_0004 if type column doesn't exist
-        if (!userHasType && !applied.includes("migrate_0004.sql")) {
-            console.log("[GLOBAL_SETUP] Applying migration: migrate_0004.sql");
-            try {
-                runD1Command([`--command="ALTER TABLE user ADD COLUMN type TEXT DEFAULT 'normal' NOT NULL;"`]);
-                const now = new Date().toISOString().replace("T", " ").substring(0, 19);
-                runD1Command([`--command="INSERT INTO _migrations (name, applied_at) VALUES ('migrate_0004.sql', '${now}')"`]);
-                console.log("[GLOBAL_SETUP] Applied: migrate_0004.sql");
-            } catch (e) {
-                console.error("[GLOBAL_SETUP] Failed to apply migrate_0004.sql:", (e as any).message);
-            }
-        }
-
-        // Apply migrate_0005 if enable column doesn't exist
-        if (!modelHasEnable && !applied.includes("migrate_0005.sql")) {
-            console.log("[GLOBAL_SETUP] Applying migration: migrate_0005.sql");
-            try {
-                runD1Command([`--command="ALTER TABLE model ADD COLUMN enable BOOLEAN DEFAULT true NOT NULL; DROP INDEX IF EXISTS name_index; CREATE UNIQUE INDEX enabled_model_name_index ON model(name) WHERE enable = 1;"`]);
-                const now = new Date().toISOString().replace("T", " ").substring(0, 19);
-                runD1Command([`--command="INSERT INTO _migrations (name, applied_at) VALUES ('migrate_0005.sql', '${now}')"`]);
-                console.log("[GLOBAL_SETUP] Applied: migrate_0005.sql");
-            } catch (e) {
-                console.error("[GLOBAL_SETUP] Failed to apply migrate_0005.sql:", (e as any).message);
-            }
-        }
-    } catch (e) {
-        console.error("[GLOBAL_SETUP] Failed to run migrations:", e);
-    }
-}
-
 export async function setup(): Promise<void> {
     console.log("=== Test Environment Setup ===");
     console.log("[GLOBAL_SETUP] setup() called at", new Date().toISOString());
@@ -132,9 +73,16 @@ export async function setup(): Promise<void> {
 
     if (isWorkerMode) {
         console.log("[GLOBAL_SETUP] Worker mode: D1 database managed by wrangler");
-        // Run pending migrations for D1
+        // Run pending migrations for D1 using script/db.ts
         console.log("[GLOBAL_SETUP] Running migrations for D1...");
-        runPendingMigrations();
+        const adapter = new WranglerDBAdapter("--local");
+        try {
+            await runMigrations(adapter, "worker-local");
+        } catch (e) {
+            console.error("[GLOBAL_SETUP] Failed to run migrations:", e);
+        } finally {
+            adapter.close();
+        }
     } else {
         cleanupTestDatabaseFile();
         console.log("[GLOBAL_SETUP] Database file deleted");
