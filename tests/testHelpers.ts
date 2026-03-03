@@ -13,15 +13,12 @@ export default {
     truncateDatabase: dbHelper.truncate,
     /**
      * Setup test admin user
-     * Creates an admin user directly in database and returns the token
+     * Creates an admin user via API (admin user already created in globalSetup)
+     * Returns the admin token
      */
     async setupAdminUser() {
         const adminUser = userFixtures.USER_FIXTURES.admin;
-        const now = new Date().toISOString();
-        await dbHelper.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            [adminUser.name, adminUser.token, adminUser.type, now, now],
-        );
+        // Admin user is already created in globalSetup, just return the token
         return adminUser.token;
     },
 };

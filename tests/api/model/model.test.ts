@@ -17,14 +17,7 @@ describe("Model API (Positive)", () => {
     beforeAll(async () => {
         await testHelpers.truncateDatabase();
 
-        // Insert admin user
-        const now = new Date().toISOString();
-        testHelpers.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            ["Admin User", adminToken, "admin", now, now],
-        );
-
-        // Create vendors for model tests
+        // Create vendors for model tests (admin user already created in globalSetup)
         const openaiVendor = await requestHelper.post(
             "/vendor/create.json",
             vendorFixtures.VENDOR_FIXTURES.openai(),

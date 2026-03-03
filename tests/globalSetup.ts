@@ -4,6 +4,7 @@ import { existsSync, unlinkSync } from "fs";
 import config from "./config";
 import dbHelper from "./helpers/dbHelper";
 import mockServer from "./helpers/mockServer";
+import requestHelper from "./helpers/requestHelper";
 
 let testServerProcess: ChildProcess | null = null;
 let mockServerProcess: any | null = null;
@@ -36,6 +37,21 @@ export async function setup(): Promise<void> {
 
     await startTestServer();
     console.log("[GLOBAL_SETUP] Test server started");
+
+    // Create initial admin user for tests
+    try {
+        await requestHelper.post("/user/create.json", {
+            name: "Admin User",
+            token: "admin-token-123",
+            type: "admin",
+        });
+        console.log("[GLOBAL_SETUP] Initial admin user created");
+    } catch (e: any) {
+        // User might already exist, ignore
+        if (!e.response || e.response.status !== 400) {
+            console.log("[GLOBAL_SETUP] Admin user creation info:", e.message || e);
+        }
+    }
 
     console.log("Test environment ready!");
 }

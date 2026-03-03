@@ -20,15 +20,15 @@ describe("Auth API Tests", () => {
     beforeAll(async () => {
         await testHelpers.truncateDatabase();
 
-        // Insert test users directly into database
-        const now = new Date().toISOString();
-        testHelpers.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            ["Admin User", adminToken, "admin", now, now],
-        );
-        testHelpers.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            ["Normal User", normalToken, "normal", now, now],
+        // Create normal user via API (admin user already created in globalSetup)
+        await requestHelper.post(
+            "/user/create.json",
+            {
+                name: "Normal User",
+                token: normalToken,
+                type: "normal",
+            },
+            adminToken,
         );
 
         // Create OpenAI vendor for testing (using mock server URL)

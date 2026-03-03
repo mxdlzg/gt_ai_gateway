@@ -10,26 +10,23 @@ export default defineConfig({
     // Run tests sequentially to avoid database and port conflicts
     pool: 'forks',
     fileParallelism: false,
+    // Increase hookTimeout for wrangler dev startup time
+    hookTimeout: 120000,
+    // Pass TEST_MODE to forked processes (Vitest 4 syntax)
+    poolOptions: {
+      forks: {
+        execArgv: [],
+        isolate: false,
+      },
+    },
+    env: {
+      TEST_MODE: 'worker',
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
       include: ['src/**/*.ts'],
       exclude: ['node_modules', '**/*.test.ts', '**/*.spec.ts', 'tests/**'],
     },
-    // Increase hookTimeout for wrangler dev startup time
-    hookTimeout: 120000,
-    // Pass TEST_MODE to forked processes
-    poolOptions: {
-      forks: {
-        execArgv: [],
-        env: {
-          TEST_MODE: 'worker',
-        },
-      },
-    },
-  },
-  // Environment variables
-  env: {
-    TEST_MODE: 'worker',
   },
 })

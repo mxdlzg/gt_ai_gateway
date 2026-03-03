@@ -105,8 +105,9 @@ async function cleanup(): Promise<void> {
 async function truncate(): Promise<void> {
     if (isWorkerMode) {
         // In worker mode, clear D1 tables by calling clearD1Tables from globalSetup
-        const { clearD1Tables } = await import("../globalSetup.worker");
+        const { clearD1Tables, setupAdminUser } = await import("../globalSetup.worker");
         clearD1Tables();
+        setupAdminUser();
         return;
     }
 
@@ -129,6 +130,17 @@ async function truncate(): Promise<void> {
         } catch (e) {
             console.error(`Failed to truncate table ${table.name}:`, e);
         }
+    }
+
+    // Recreate admin user after truncation
+    const now = new Date().toISOString();
+    try {
+        db.prepare(
+            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
+        ).run("Admin User", "admin-token-123", "admin", now, now);
+        console.log("Admin user recreated");
+    } catch (e) {
+        console.log("Admin user might already exist:", (e as any).message);
     }
 
     console.log("Tables truncated");

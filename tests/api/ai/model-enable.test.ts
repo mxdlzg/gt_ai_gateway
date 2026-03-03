@@ -18,17 +18,15 @@ describe("Gateway - Model Enable Filter", () => {
     beforeAll(async () => {
         await testHelpers.truncateDatabase();
 
-        // Insert admin user
-        const now = new Date().toISOString();
-        testHelpers.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            ["Admin User", adminToken, "admin", now, now],
-        );
-
-        // Insert normal user
-        testHelpers.execute(
-            "INSERT INTO user (name, token, type, created_at, updated_at) VALUES (?, ?, ?, ?, ?)",
-            ["Normal User", normalToken, "normal", now, now],
+        // Insert normal user via API (admin user already created in globalSetup)
+        const normalUserResponse = await requestHelper.post(
+            "/user/create.json",
+            {
+                name: "Normal User",
+                token: normalToken,
+                type: "normal",
+            },
+            adminToken,
         );
 
         // Create vendor (requires admin)
