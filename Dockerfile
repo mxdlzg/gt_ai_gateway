@@ -36,6 +36,12 @@ RUN npm ci --production
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/src ./src
 COPY --from=builder /app/frontend/dist ./frontend/dist
+COPY --from=builder /app/script ./script
+COPY --from=builder /app/resource ./resource
+COPY --from=builder /app/docker-entrypoint.sh ./
+
+# 赋予执行权限
+RUN chmod +x docker-entrypoint.sh
 
 # 创建日志目录
 RUN mkdir -p /app/log
@@ -56,4 +62,4 @@ ENV PORT=8787
 ENV DB_PATH=/app/data/local.db
 
 # 启动应用
-CMD ["npm", "run", "backend:start"]
+CMD ["./docker-entrypoint.sh"]

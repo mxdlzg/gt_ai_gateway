@@ -20,6 +20,7 @@
     "backend:test:worker": "TEST_MODE=worker vitest --config vitest.worker.config.ts",
     "backend:test:all": "npm run backend:test:node && npm run backend:test:worker",
     "deploy": "wrangler deploy --minify",
+    "db:init:local": "npx tsx script/db.ts init --env local",
     "db:migrate:local": "npx tsx script/db.ts migrate --env local",
     "db:clear:local": "npx tsx script/db.ts clear --env local",
     "db:status:local": "npx tsx script/db.ts status --env local",

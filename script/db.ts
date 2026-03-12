@@ -373,13 +373,21 @@ async function clear(adapter: DBAdapter, env: string) {
     console.log("\nDatabase cleared.");
 }
 
+async function init(adapter: DBAdapter, env: string) {
+    console.log(`\nInitializing database in ${env}...`);
+    // The database connection automatically creates the file if it doesn't exist.
+    // We just need to execute the migrations.
+    await migrate(adapter, env);
+    console.log(`\nDatabase initialized successfully.`);
+}
+
 // 主入口
 async function main() {
     if (!command) {
         console.error(
             "Usage: npx tsx script/db.ts <command> [--env local|worker-local|worker-cloud]",
         );
-        console.error("Commands: migrate, status, clear");
+        console.error("Commands: migrate, status, clear, init");
         process.exit(1);
     }
 
@@ -414,9 +422,12 @@ async function main() {
             case "clear":
                 await clear(adapter, env);
                 break;
+            case "init":
+                await init(adapter, env);
+                break;
             default:
                 console.error(`Unknown command: ${command}`);
-                console.log("Available commands: migrate, status, clear");
+                console.log("Available commands: migrate, status, clear, init");
                 process.exit(1);
         }
     } catch (e) {
