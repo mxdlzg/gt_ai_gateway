@@ -52,29 +52,13 @@ class LocalDBAdapter implements DBAdapter {
  * WorkerDBAdapter wrapper for test database (wrangler local D1)
  */
 class WorkerDBAdapter implements DBAdapter {
-    private dbId = "serverless_ai_gateway";
-
-    private runWrangler(args: string[]): string {
-        const cmd = `npx wrangler d1 execute ${this.dbId} --local ${args.join(" ")}`;
-        console.log(`> ${cmd}`);
-        try {
-            const output = execSync(cmd, { encoding: "utf-8", stdio: "pipe" });
-            return output;
-        } catch (e: any) {
-            console.error("Wrangler command failed:", e.message);
-            if (e.stdout) console.error("stdout:", e.stdout);
-            if (e.stderr) console.error("stderr:", e.stderr);
-            throw e;
-        }
-    }
-
     exec(sql: string): void {
         const singleLine = sql.replace(/\n/g, " ");
-        this.runWrangler([`--command="${singleLine.replace(/"/g, '\\"')}"`]);
+        runD1Command([`--command="${singleLine.replace(/"/g, '\\"')}"`]);
     }
 
     query<T>(sql: string): T[] {
-        const output = this.runWrangler([
+        const output = runD1Command([
             `--json --command="${sql.replace(/"/g, '\\"')}"`,
         ]);
         try {
@@ -333,15 +317,15 @@ async function cleanup(): Promise<void> {
  * Truncate tables - remove all data but keep structure
  */
 async function truncate(): Promise<void> {
+    // Auto-connect if not initialized
+    if (!adapter) {
+        adapter = createAdapter();
+    }
+
     if (isWorkerMode) {
         // In worker mode, clear D1 tables only (admin user created via API)
         clearD1Tables();
         return;
-    }
-
-    // Auto-connect if not initialized
-    if (!adapter) {
-        adapter = createAdapter();
     }
 
     console.log("Truncating tables...");

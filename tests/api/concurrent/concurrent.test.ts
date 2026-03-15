@@ -21,7 +21,7 @@ describe("Concurrent Requests", () => {
                 await requestHelper.post(
                     "/user/create.json",
                     userFixtures.USER_FIXTURES.admin,
-                    "test-root-token-123",
+                    "root-token-123",
                 );
                 break;
             } catch (e) {

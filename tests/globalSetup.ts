@@ -36,12 +36,12 @@ process.on("SIGTERM", globalCleanup);
  * Creates an admin user via API if needed, returns the admin token
  */
 async function setupAdminUser(): Promise<string> {
-    const rootToken = "test-root-token-123";
+    const rootToken = "root-token-123";
     const adminToken = "admin-token-123";
     const adminUser = { name: "Admin User", token: adminToken, type: "admin" };
     console.log("Creating admin user:", adminUser);
 
-    const maxRetries = 3;
+    const maxRetries = 5;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
         try {
             const response = await requestHelper.post(
@@ -50,15 +50,21 @@ async function setupAdminUser(): Promise<string> {
                 rootToken,
             );
             console.log("Admin user created, response:", response.status);
-            break;
+            
+            if (response.status === 200 || response.status === 409) {
+                break;
+            }
+            
+            console.log(`Admin user creation attempt ${attempt}/${maxRetries} failed with status ${response.status}`);
         } catch (e: any) {
             console.log(`Admin user creation attempt ${attempt}/${maxRetries} failed:`, e.message || e);
-            if (attempt < maxRetries) {
-                // Wait before retry - D1 database may be locked by wrangler d1 execute
-                await new Promise(resolve => setTimeout(resolve, 1000));
-            } else {
-                console.log("Admin user creation failed after all retries");
-            }
+        }
+        
+        if (attempt < maxRetries) {
+            // Wait before retry - D1 database may be locked by wrangler d1 execute or server starting up
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        } else {
+            console.log("Admin user creation failed after all retries");
         }
     }
     return adminToken;
@@ -147,6 +153,7 @@ function startTestServer(): Promise<void> {
 
         if (isWorkerMode) {
             // Worker mode: use wrangler dev with test config
+            // Use --var to explicitly set ROOT_TOKEN and avoid interference from .dev.vars
             command = [
                 "wrangler",
                 "dev",
@@ -163,7 +170,7 @@ function startTestServer(): Promise<void> {
             command = ["tsx", serverPath];
             env.PORT = port.toString();
             env.DB_PATH = config.DB_CONFIG.path;
-            env.ROOT_TOKEN = "test-root-token-123";
+            env.ROOT_TOKEN = "root-token-123";
         }
 
         console.log(

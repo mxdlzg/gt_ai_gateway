@@ -10,7 +10,7 @@ import { ROOT_USER_ID } from "../../../src/constants";
  * Tests for the root token functionality
  */
 
-const ROOT_TOKEN = "test-root-token-123";
+const ROOT_TOKEN = "root-token-123";
 const INVALID_ROOT_TOKEN = "invalid-root-token";
 let adminToken = "admin-token-123";
 

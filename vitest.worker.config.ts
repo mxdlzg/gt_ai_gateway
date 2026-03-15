@@ -12,6 +12,7 @@ export default defineConfig({
     fileParallelism: false,
     // Increase hookTimeout for wrangler dev startup time
     hookTimeout: 120000,
+    testTimeout: 60000,
     // Pass TEST_MODE to forked processes (Vitest 4 syntax)
     execArgv: [],
     isolate: false,
