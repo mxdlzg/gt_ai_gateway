@@ -76,43 +76,43 @@
         </a-row>
 
         <!-- 原有系统统计 -->
-        <a-row :gutter="[16, 16]" style="margin-top: 16px;">
-            <a-col :span="5">
+        <div class="status-grid">
+            <div class="status-grid-item">
                 <StatusCard
                     title="用户总数"
                     :value="systemStats.userCount"
                     :loading="loading"
                 />
-            </a-col>
-            <a-col :span="5">
+            </div>
+            <div class="status-grid-item">
                 <StatusCard
                     title="供应商总数"
                     :value="systemStats.vendorCount"
                     :loading="loading"
                 />
-            </a-col>
-            <a-col :span="5">
+            </div>
+            <div class="status-grid-item">
                 <StatusCard
                     title="模型总数"
                     :value="systemStats.modelCount"
                     :loading="loading"
                 />
-            </a-col>
-            <a-col :span="5">
+            </div>
+            <div class="status-grid-item">
                 <StatusCard
                     title="请求总数"
                     :value="systemStats.recordCount"
                     :loading="loading"
                 />
-            </a-col>
-            <a-col :span="4">
+            </div>
+            <div class="status-grid-item">
                 <StatusCard
                     title="系统状态"
                     :value="systemStatus"
                     :loading="loading"
                 />
-            </a-col>
-        </a-row>
+            </div>
+        </div>
 
         <!-- 系统信息 -->
         <a-card title="系统信息" style="margin-top: 16px" :loading="loading">
@@ -367,6 +367,17 @@ function formatTime(date: Date): string {
     margin-top: 16px;
 }
 
+.status-grid {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+}
+
+.status-grid-item {
+    min-width: 0;
+}
+
 .empty-records {
     text-align: center;
     padding: 40px;
@@ -401,6 +412,10 @@ function formatTime(date: Date): string {
 }
 
 @media (max-width: 768px) {
+    .status-grid {
+        grid-template-columns: 1fr;
+    }
+
     .system-info-grid {
         grid-template-columns: 1fr;
     }
