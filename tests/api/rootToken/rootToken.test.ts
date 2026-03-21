@@ -324,7 +324,7 @@ describe("Root Token Tests", () => {
             const response = await requestHelper.get("/vendor/list.json", ROOT_TOKEN);
 
             expect(response.status).toBe(200);
-            expect(Array.isArray(response.body)).toBe(true);
+            expect(Array.isArray(response.body.list)).toBe(true);
         });
 
         it("should work independently - normal user should not have admin access", async () => {
@@ -350,7 +350,7 @@ describe("Root Token Tests", () => {
             const response = await requestHelper.get("/vendor/list.json", adminToken);
 
             expect(response.status).toBe(200);
-            expect(Array.isArray(response.body)).toBe(true);
+            expect(Array.isArray(response.body.list)).toBe(true);
         });
     });
 
