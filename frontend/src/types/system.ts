@@ -19,6 +19,7 @@ export interface SystemStatistics {
 export interface StatusResponse {
     status?: string;
     mode?: string;
+    user_type?: string;
     system?: SystemStatusInfo;
     statistics?: SystemStatistics;
     timestamp?: string;

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { welcome } from '@/api/system';
+import { status } from '@/api/system';
 import { clearAuthToken, getAuthToken, setAuthToken } from '@/utils/authSession';
 
 export const useAuthStore = defineStore('auth', () => {
@@ -26,11 +26,11 @@ export const useAuthStore = defineStore('auth', () => {
 
         isLoading.value = true;
         try {
-            const data = await welcome();
+            const data = await status();
             if (data && data.user_type) {
                 userType.value = data.user_type;
             } else {
-                userType.value = 'admin'; // Default fallback
+                userType.value = 'admin';
             }
             return true;
         } catch {

@@ -147,10 +147,25 @@ router.beforeEach(async (to) => {
         if (!authStore.isAuthenticated) {
             return { name: 'Login', query: { redirect: to.fullPath } };
         }
+
+        if (!authStore.userType) {
+            const isValid = await authStore.validateToken();
+            if (!isValid) {
+                return { name: 'Login', query: { redirect: to.fullPath } };
+            }
+        }
+
         return true;
     }
 
     if (authStore.isAuthenticated && to.name === 'Login') {
+        if (!authStore.userType) {
+            const isValid = await authStore.validateToken();
+            if (!isValid) {
+                return true;
+            }
+        }
+
         return { name: 'Dashboard' };
     }
 
