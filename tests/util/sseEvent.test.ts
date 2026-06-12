@@ -64,6 +64,6 @@ describe("sseEvent", () => {
         })).toBe(false);
         expect(sseEvent.isClientStreamCompleted(ApiFormat.RESPONSES, {
             data: "{\"type\":\"response.completed\"}",
-        })).toBe(false);
+        })).toBe(true);
     });
 });

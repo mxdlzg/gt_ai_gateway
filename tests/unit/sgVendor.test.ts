@@ -9,9 +9,9 @@ import { ApiFormat, VendorType } from "../../src/constants";
  *   custom URL wins → preset used as fallback → path suffix auto-appended
  */
 
-function makeVendor(type: VendorType, urls: Record<string, string> = {}): SgVendor {
+function makeVendor(type: string, urls: Record<string, string> = {}): SgVendor {
     const v = new SgVendor();
-    v.type = type;
+    v.type = type as VendorType;
     v.token = "test-token";
     v.urls = JSON.stringify(urls);
     return v;
@@ -209,7 +209,7 @@ describe("SgVendor.getUrlByFormat — URL merge & resolution", () => {
 
         it("returns empty object when urls is empty string", () => {
             const v = new SgVendor();
-            v.type = "other";
+            v.type = "other" as VendorType;
             v.token = "t";
             v.urls = "";
 
@@ -218,7 +218,7 @@ describe("SgVendor.getUrlByFormat — URL merge & resolution", () => {
 
         it("returns empty object when urls is invalid JSON", () => {
             const v = new SgVendor();
-            v.type = "other";
+            v.type = "other" as VendorType;
             v.token = "t";
             v.urls = "not-json";
 
@@ -249,7 +249,7 @@ describe("SgVendor.getUrlByFormat — URL merge & resolution", () => {
 
         it("falls back to preset URLs when stored urls is invalid", () => {
             const v = new SgVendor();
-            v.type = "openai";
+            v.type = "openai" as VendorType;
             v.token = "t";
             v.urls = "not-json";
 

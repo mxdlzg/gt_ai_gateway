@@ -816,7 +816,7 @@ describe("AnthropicToResponsesConverter - convertRequest", () => {
 
         const result = converter.convertRequest(req);
 
-        const funcCall = result.input.find((item: any) => item.type === "function_call") as any;
+        const funcCall = (result.input as ResponsesInputItem[]).find((item: any) => item.type === "function_call") as any;
         expect(funcCall).toBeDefined();
         expect(funcCall.call_id).toBe("toolu_123");
         expect(funcCall.name).toBe("get_weather");
@@ -846,7 +846,7 @@ describe("AnthropicToResponsesConverter - convertRequest", () => {
 
         const result = converter.convertRequest(req);
 
-        const funcOutput = result.input.find((item: any) => item.type === "function_call_output") as any;
+        const funcOutput = (result.input as ResponsesInputItem[]).find((item: any) => item.type === "function_call_output") as any;
         expect(funcOutput).toBeDefined();
         expect(funcOutput.call_id).toBe("toolu_123");
         expect(funcOutput.output).toBe("Sunny, 25°C");
@@ -869,7 +869,7 @@ describe("AnthropicToResponsesConverter - convertRequest", () => {
 
         const result = converter.convertRequest(req);
 
-        const reasoning = result.input.find((item: any) => item.type === "reasoning") as any;
+        const reasoning = (result.input as ResponsesInputItem[]).find((item: any) => item.type === "reasoning") as any;
         expect(reasoning).toBeDefined();
         expect(reasoning.summary[0].text).toBe("Let me reason...");
         expect(reasoning.encrypted_content).toBe("sig_abc");

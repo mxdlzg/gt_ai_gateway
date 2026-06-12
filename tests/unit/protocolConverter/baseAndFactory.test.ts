@@ -125,7 +125,7 @@ describe("ConverterFactory", () => {
 
     it("should return null for unsupported conversions", () => {
         expect(ConverterFactory.create(ApiFormat.OPENAI, ApiFormat.RESPONSES)).toBeNull();
-        expect(ConverterFactory.create(ApiFormat.GOOGLE, ApiFormat.OPENAI)).toBeNull();
+        expect(ConverterFactory.create("google" as ApiFormat, ApiFormat.OPENAI)).toBeNull();
     });
 
     it("should create a pair converter for request and response conversion", () => {

@@ -14,7 +14,7 @@ interface VendorDefaultUrls {
  * @returns default URL, or null if not found
  */
 function getDefaultUrl(vendorType: VendorType, format: ApiFormat): string | null {
-    return defaultUrls[vendorType]?.[format] || null;
+    return (defaultUrls as any)[vendorType]?.[format as string] || null;
 }
 
 /**
