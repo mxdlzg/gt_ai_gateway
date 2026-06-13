@@ -25,6 +25,14 @@ tauri/
         └── lib.rs                  # Rust 主逻辑
 ```
 
+## 启动开发环境
+
+在项目根目录下，直接运行以下命令即可启动 Tauri 的 Dev 模式（会自动同时启动前端 Vite 开发服务器和后端桌面应用）：
+
+```bash
+npm run tauri dev
+```
+
 ## 运行模式对比
 
 ### Dev 模式 (`npm run tauri dev`)
@@ -98,6 +106,14 @@ Tauri Rust 在启动 sidecar 时传入以下环境变量：
 | `ROOT_TOKEN` | `config.json`（首次自动生成） | 管理员认证令牌 |
 | `DESKTOP_MODE` | 固定值 `"1"` | 标识桌面模式 |
 | `MIGRATION_DIR` | `resource_dir/migrate` | 数据库迁移文件目录 |
+
+## 前端环境变量
+
+前端页面（如启动画面）可以通过 Vite 注入环境变量。
+
+| 环境变量 | 来源 | 说明 |
+|----------|------|------|
+| `VITE_SPLASH_DELAY_SEC` | `.env.development` 或 CLI | 控制启动画面的最少停留秒数（例如 `3` 表示额外等待 3 秒）。用于本地调试 UI。默认为 `0`。 |
 
 ## Splash → Main 窗口通信
 
