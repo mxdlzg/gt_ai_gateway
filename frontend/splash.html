@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GT AI Gateway</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            height: 100vh;
+            overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .splash-card {
+            background: rgba(30, 30, 35, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 0;
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        .top-section {
+            position: absolute;
+            top: 38.2%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            pointer-events: none;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 8px;
+        }
+        .logo {
+            width: 72px;
+            height: 72px;
+        }
+        .title {
+            font-size: 48px;
+            font-weight: 600;
+            color: #ffffff;
+        }
+        .subtitle {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.6);
+            margin-bottom: 0;
+            pointer-events: none;
+        }
+        
+        /* Loading State */
+        .loading-container {
+            position: absolute;
+            top: 55%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            border-top-color: #a8c0ff;
+            animation: spin 1s ease-in-out infinite;
+            margin-bottom: 20px;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Error State */
+        .error-container {
+            display: none;
+            position: absolute;
+            top: 52%;
+            left: 50%;
+            transform: translate(-50%, 0);
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            animation: fadeIn 0.4s ease;
+        }
+        .error-content-row {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 16px;
+            margin-bottom: 24px;
+            text-align: left;
+            max-width: 80%;
+        }
+        .error-icon {
+            width: 48px;
+            height: 48px;
+            flex-shrink: 0;
+            background: rgba(255, 77, 79, 0.15);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .error-icon svg {
+            width: 28px;
+            height: 28px;
+            fill: #ff4d4f;
+        }
+        .error-text-col {
+            display: flex;
+            flex-direction: column;
+        }
+        .error-title {
+            color: #ff4d4f;
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        .error-desc {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.85);
+            margin-bottom: 0;
+            line-height: 1.5;
+        }
+        .btn-exit {
+            background: #ff4d4f;
+            color: white;
+            border: none;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-exit:hover {
+            background: #ff7875;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+    <div class="splash-card" data-tauri-drag-region>
+        <div class="top-section" data-tauri-drag-region>
+            <div class="header">
+                <img src="/favicon.svg" alt="Logo" class="logo" />
+                <div class="title">GT AI Gateway</div>
+            </div>
+            <div class="subtitle">服务启动中...</div>
+        </div>
+
+        <!-- Loading UI -->
+        <div class="loading-container" id="loadingState">
+            <div class="spinner"></div>
+            <div style="font-size: 13px; color: rgba(255,255,255,0.5);">正在初始化底层服务</div>
+        </div>
+
+        <!-- Error UI -->
+        <div class="error-container" id="errorState">
+            <div class="error-content-row">
+                <div class="error-icon">
+                    <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                </div>
+                <div class="error-text-col">
+                    <div class="error-title">服务启动失败</div>
+                    <div class="error-desc" id="errorText">
+                        <!-- Text filled by JS -->
+                    </div>
+                </div>
+            </div>
+            <button class="btn-exit" id="btnExit">确认退出</button>
+        </div>
+    </div>
+    <script type="module" src="/src/splash.ts"></script>
+</body>
+</html>

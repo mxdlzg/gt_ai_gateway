@@ -3,6 +3,9 @@ use std::os::unix::io::{FromRawFd, OwnedFd, RawFd};
 use std::os::unix::process::CommandExt;
 use std::path::Path;
 use std::sync::Mutex;
+use std::sync::atomic::{AtomicI32, Ordering};
+
+static BACKEND_EXIT_CODE: AtomicI32 = AtomicI32::new(0);
 
 use tauri::{
     image::Image,
@@ -36,6 +39,29 @@ fn get_backend_url(state: tauri::State<BackendUrl>) -> String {
 #[tauri::command]
 fn get_auth_token(state: tauri::State<AuthToken>) -> String {
     state.0.clone()
+}
+
+#[tauri::command]
+fn exit_app() {
+    std::process::exit(1);
+}
+
+#[tauri::command]
+fn open_main_window(app: tauri::AppHandle) {
+    if let Some(splash) = app.get_webview_window("splashscreen") {
+        let _ = splash.close();
+    }
+    show_main_window(&app);
+}
+
+#[tauri::command]
+fn check_backend_status() -> Result<(), i32> {
+    let code = BACKEND_EXIT_CODE.load(Ordering::SeqCst);
+    if code != 0 {
+        Err(code)
+    } else {
+        Ok(())
+    }
 }
 
 struct AppConfig {
@@ -157,8 +183,7 @@ fn show_main_window(app: &tauri::AppHandle) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
-        .plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![get_backend_url, get_auth_token])
+        .invoke_handler(tauri::generate_handler![get_backend_url, get_auth_token, exit_app, open_main_window, check_backend_status])
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -179,9 +204,25 @@ pub fn run() {
                 .parent()
                 .expect("exe has no parent dir")
                 .to_path_buf();
-            let sidecar_path = exe_dir.join("ai-gateway-backend");
-            // resource 文件在 .app/Contents/Resources/resource/ 下
-            let resource_dir = exe_dir.join("../Resources/resource");
+
+            #[cfg(not(debug_assertions))]
+            let (mut cmd, migration_dir) = {
+                let sidecar_path = exe_dir.join("ai-gateway-backend");
+                // resource 文件在 .app/Contents/Resources/resource/ 下
+                let resource_dir = exe_dir.join("../Resources/resource");
+                let c = std::process::Command::new(&sidecar_path);
+                (c, resource_dir.join("migrate").to_string_lossy().into_owned())
+            };
+
+            #[cfg(debug_assertions)]
+            let (mut cmd, migration_dir) = {
+                // Dev 模式下直接运行源码，实现热加载，同时避免被 pkg 构建覆盖
+                let project_root = exe_dir.join("../../../..");
+                let mut c = std::process::Command::new("npx");
+                c.arg("tsx").arg("src/local.ts");
+                c.current_dir(&project_root);
+                (c, project_root.join("resource/migrate").to_string_lossy().into_owned())
+            };
 
             // 打开 PTY pair
             let (master_raw, slave_path) = unsafe { open_pty() }
@@ -197,14 +238,13 @@ pub fn run() {
             }
 
             // 构造命令，继承当前环境并追加我们的变量
-            let mut cmd = std::process::Command::new(&sidecar_path);
             cmd.env("DB_PATH", db_path.to_str().unwrap())
                .env("PORT", config.port.to_string())
                .env("HOST", &config.host)
                .env("LOG_DIR", log_dir.to_str().unwrap())
                .env("ROOT_TOKEN", &config.root_token)
                .env("DESKTOP_MODE", "1")
-               .env("MIGRATION_DIR", resource_dir.join("migrate").to_str().unwrap());
+               .env("MIGRATION_DIR", migration_dir);
 
             // pre_exec：在 fork 之后、exec 之前在子进程中执行
             unsafe {
@@ -240,19 +280,13 @@ pub fn run() {
 
             let mut child = cmd.spawn().expect("failed to spawn backend sidecar");
 
-            let app_handle = app.handle().clone();
+            let app_handle_clone = app.handle().clone();
             std::thread::spawn(move || {
                 if let Ok(status) = child.wait() {
-                    if status.code() == Some(98) {
-                        use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
-                        let app_handle_clone = app_handle.clone();
-                        app_handle.dialog()
-                            .message("启动失败：后端 8787 端口被占用，请彻底清理旧进程或使用该端口的其他程序后重试。")
-                            .title("启动错误")
-                            .kind(MessageDialogKind::Error)
-                            .show(move |_| {
-                                app_handle_clone.exit(1);
-                            });
+                    if let Some(code) = status.code() {
+                        BACKEND_EXIT_CODE.store(code, Ordering::SeqCst);
+                        use tauri::Emitter;
+                        let _ = app_handle_clone.emit("backend-error", code);
                     }
                 }
             });

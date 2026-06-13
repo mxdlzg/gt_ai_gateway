@@ -8,7 +8,8 @@ import app, { Env } from "./routes";
 import initLogger, { Logger } from "./util/logger";
 
 // 加载环境变量
-config({ path: join(process.cwd(), ".dev.vars") });
+// Tauri 等环境传入的变量优先级最高，.dev.vars 仅作为兜底（不会覆盖已有变量）
+config({ path: join(process.cwd(), ".dev.vars"), override: false });
 
 const DB_PATH = process.env.DB_PATH || join(process.cwd(), "local.db");
 

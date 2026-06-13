@@ -33,4 +33,12 @@ export default defineConfig({
             },
         },
     },
+    build: {
+        rollupOptions: {
+            input: {
+                main: fileURLToPath(new URL('./index.html', import.meta.url)),
+                splash: fileURLToPath(new URL('./splash.html', import.meta.url)),
+            },
+        },
+    },
 })
