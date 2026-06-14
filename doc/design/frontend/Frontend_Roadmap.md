@@ -103,4 +103,4 @@
 - [前端产品文档](./Frontend_Product_Documentation.md)
 - [v4.0 计费管理产品文档](./v4_billing_product.md)
 - [后端产品文档](../backend/v4_billing_product.md)
-- [前端开发手册](../FrontendDevManual.md)
+- [前端开发手册](../../dev/FrontendDevManual.md)

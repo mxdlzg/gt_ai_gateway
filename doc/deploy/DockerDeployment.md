@@ -73,6 +73,6 @@ docker exec -it gt_ai_gateway npm run db:migrate:node
 
 ## 相关文档
 
-- **后端开发手册**：`doc/BackendDevManual.md`
-- **前端开发手册**：`doc/FrontendDevManual.md`
-- **LLM API 使用指南**：`doc/LlmApiUsage.md`
+- **后端开发手册**：`../dev/BackendDevManual.md`
+- **前端开发手册**：`../dev/FrontendDevManual.md`
+- **LLM API 使用指南**：`../usage/LlmApiUsage.md`

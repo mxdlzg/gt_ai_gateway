@@ -266,6 +266,6 @@ A:
 
 ## 相关文档
 
-- **后端开发手册**：`doc/BackendDevManual.md`
-- **测试手册**：`doc/TestManual.md`
-- **编程规范**：`GEMINI.md`
+- **后端开发手册**：`BackendDevManual.md`
+- **测试手册**：`TestManual.md`
+- **编程规范**：`../../GEMINI.md`

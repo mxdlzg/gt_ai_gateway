@@ -7,12 +7,12 @@
 | 文档 | 说明 |
 |------|------|
 | **GEMINI.md** | 本文档，编程规范和工作技巧 |
-| **doc/FrontendDevManual.md** | 前端开发手册，包含环境配置、前端开发方式等 |
-| **doc/BackendDevManual.md** | 后端开发手册，包含环境配置、后端开发方式、API 开发等 |
+| **doc/dev/FrontendDevManual.md** | 前端开发手册，包含环境配置、前端开发方式等 |
+| **doc/dev/BackendDevManual.md** | 后端开发手册，包含环境配置、后端开发方式、API 开发等 |
 | **doc/deploy/DockerDeployment.md** | Docker 部署文档，包含 Docker Compose、直接构建运行等 |
-| **doc/TauriDevManual.md** | Tauri 桌面应用开发手册，包含目录结构、启动流程、Dev/Production 差异、已知问题等 |
-| **doc/TestManual.md** | 测试手册，描述测试环境的架构设计和操作流程 |
-| **doc/LlmApiUsage.md** | LLM API 使用指南，介绍如何调用网关提供的 LLM 接口 |
+| **doc/dev/TauriDevManual.md** | Tauri 桌面应用开发手册，包含目录结构、启动流程、Dev/Production 差异、已知问题等 |
+| **doc/dev/TestManual.md** | 测试手册，描述测试环境的架构设计和操作流程 |
+| **doc/usage/LlmApiUsage.md** | LLM API 使用指南，介绍如何调用网关提供的 LLM 接口 |
 | **doc/protocol/OpenAiProtocol.md** | OpenAI Chat Completions 协议说明文档 |
 | **doc/protocol/OpenAiResponsesProtocol.md** | OpenAI Responses API 协议说明文档 |
 | **doc/protocol/AnthropicProtocol.md** | Anthropic 协议说明文档 |

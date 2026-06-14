@@ -127,4 +127,4 @@
 
 - [后端产品文档](../backend/v4_billing_product.md)
 - [前端开发路线图](../Frontend_Roadmap.md)
-- [前端开发手册](../../FrontendDevManual.md)
+- [前端开发手册](../../../dev/FrontendDevManual.md)

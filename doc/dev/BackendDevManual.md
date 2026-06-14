@@ -255,7 +255,7 @@ Node 模式下，后端服务器可以提供前端构建后的静态文件：
 
 ### 开发规范
 
-详见 `GEMINI.md`，核心规范如下：
+详见 `../../GEMINI.md`，核心规范如下：
 
 1. **代码缩进**：使用 4 个空格，方法之间空两行
 2. **模块划分**：
@@ -276,7 +276,6 @@ Node 模式下，后端服务器可以提供前端构建后的静态文件：
 
 ## 相关文档
 
-- **LLM API 使用指南**：`doc/LlmApiUsage.md`
-- **前端开发手册**：`doc/FrontendDevManual.md`
-- **测试手册**：`doc/TestManual.md`
-- **编程规范**：`GEMINI.md`
+- **前端开发手册**：`FrontendDevManual.md`
+- **测试手册**：`TestManual.md`
+- **LLM API 使用指南**：`../usage/LlmApiUsage.md`

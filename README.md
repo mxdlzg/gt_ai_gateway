@@ -48,7 +48,7 @@ docker run -d \
 
 无论您使用哪种方式成功启动了系统，接下来您需要经过简单的几步配置才能开始对外提供模型调用服务。从添加渠道密钥、配置模型路由到分发令牌，请阅读这份 5 分钟上手教程：
 
-👉 **[配置与使用指南：从零到一](doc/ConfigurationGuide.md)**
+👉 **[配置与使用指南：从零到一](doc/usage/ConfigurationGuide.md)**
 
 ## 文档索引
 
@@ -58,14 +58,14 @@ docker run -d \
   - [Cloudflare 部署文档](doc/deploy/CloudflareDeployment.md)
   - [Docker 部署文档](doc/deploy/DockerDeployment.md)
   - [源码部署文档](doc/deploy/SourceCodeDeployment.md)
-  - [系统配置与使用指南](doc/ConfigurationGuide.md)
-  - [LLM API 使用指南](doc/LlmApiUsage.md)
+  - [系统配置与使用指南](doc/usage/ConfigurationGuide.md)
+  - [LLM API 使用指南](doc/usage/LlmApiUsage.md)
 
 - **开发人员手册**
-  - [前端开发手册](doc/FrontendDevManual.md): 包含前端环境配置、项目结构及开发命令。
-  - [后端开发手册](doc/BackendDevManual.md): 包含后端架构、环境配置、API 开发及数据库管理。
-  - [Tauri 桌面开发手册](doc/TauriDevManual.md): 包含 Tauri 目录结构、客户端运行和打包说明。
-  - [测试手册](doc/TestManual.md): 自动化测试环境架构设计、操作流程及调试方法。
+  - [前端开发手册](doc/dev/FrontendDevManual.md): 包含前端环境配置、项目结构及开发命令。
+  - [后端开发手册](doc/dev/BackendDevManual.md): 包含后端架构、环境配置、API 开发及数据库管理。
+  - [Tauri 桌面开发手册](doc/dev/TauriDevManual.md): 包含 Tauri 目录结构、客户端运行和打包说明。
+  - [测试手册](doc/dev/TestManual.md): 自动化测试环境架构设计、操作流程及调试方法。
   - [编程规范](GEMINI.md): 项目代码规范、开发技巧及 Git 提交指南。
 
 ## 许可证
