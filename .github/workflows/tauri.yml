@@ -68,3 +68,55 @@ jobs:
             tauri/build/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg
             tauri/build/target/aarch64-apple-darwin/release/bundle/macos/*.app
           if-no-files-found: warn
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: build-mac
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+      actions: read
+
+    steps:
+      - name: Check version tag
+        id: version_tag
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ "$tag" =~ ^v[0-9]+(\.[0-9]+)+$ ]]; then
+            echo "matched=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "matched=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping release for non-version tag: $tag"
+          fi
+
+      - name: Download macOS artifacts
+        if: steps.version_tag.outputs.matched == 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: macOS-app
+          path: release-artifacts
+
+      - name: Create or update release
+        if: steps.version_tag.outputs.matched == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          mapfile -t assets < <(find release-artifacts -type f -name "*.dmg" | sort)
+
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists"
+            if [ "${#assets[@]}" -gt 0 ]; then
+              gh release upload "$tag" "${assets[@]}" --clobber
+            fi
+            exit 0
+          fi
+
+          if [ "${#assets[@]}" -gt 0 ]; then
+            gh release create "$tag" "${assets[@]}" --title "$tag" --generate-notes
+          else
+            gh release create "$tag" --title "$tag" --generate-notes
+          fi
