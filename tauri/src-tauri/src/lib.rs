@@ -80,14 +80,9 @@ struct AppConfig {
     root_token: String,
 }
 
-/// 生成随机 token（32 字符 hex）
+/// 生成随机 token（UUID v4）
 fn generate_random_token() -> String {
-    use std::time::{SystemTime, UNIX_EPOCH};
-    let seed = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_nanos();
-    format!("{:032x}", seed ^ (seed >> 64))
+    uuid::Uuid::new_v4().to_string()
 }
 
 /// 从 app_data_dir/config.json 读取配置。
@@ -124,7 +119,7 @@ fn read_config(app_data_dir: &Path) -> AppConfig {
         need_write = true;
     }
 
-    // 若 root_token 为空，自动生成一个
+    // 若 root_token 为空，自动生成一个 UUID
     if root_token.is_empty() {
         root_token = generate_random_token();
         need_write = true;
