@@ -92,6 +92,9 @@ async function startMockServer(port: number = DEFAULT_MOCK_PORT): Promise<any> {
 async function stopMockServer(serverInstance: any): Promise<void> {
     if (serverInstance) {
         return new Promise((resolve) => {
+            if (typeof serverInstance.closeAllConnections === "function") {
+                serverInstance.closeAllConnections();
+            }
             serverInstance.close(() => {
                 isRunning = false;
                 console.log("Mock AI server stopped");

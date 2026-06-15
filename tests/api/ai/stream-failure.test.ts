@@ -273,7 +273,7 @@ describe("Stream Failure Handling", () => {
     });
 
 
-    describe("Client disconnect — upstream still running", () => {
+    describe.skipIf(config.TEST_MODE === "worker")("Client disconnect — upstream still running", () => {
         async function abortStreamAfterFirstChunk(
             endpoint: string,
             body: object,

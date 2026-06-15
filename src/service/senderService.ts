@@ -1,6 +1,6 @@
 import { Context } from "hono";
 import { SgModel } from "../model/sgModel";
-import { StatusCode } from "hono/dist/types/utils/http-status";
+import { StatusCode } from "hono/utils/http-status";
 import { streamSSE, SSEStreamingApi } from "hono/streaming";
 import { SgUser } from "../model/sgUser";
 import { SgVendor } from "../model/sgVendor";
@@ -22,7 +22,7 @@ import type { BaseConverter } from "../util/protocolConverter/BaseConverter";
 import type { ProtocolStreamEvent } from "../util/protocolConverter/protocolTypes";
 import sseEvent from "../util/sseEvent";
 import configService from "./configService";
-
+import { runInBackground } from "../util/runInBackground";
 
 function calculateCost(
     model: SgModel,
@@ -199,7 +199,7 @@ async function handleStreamResponse(
                     value = result.value;
                 } catch (e: any) {
                     console.error("[senderService] Upstream read error:", e);
-                    failedCode = FailedCode.UPSTREAM_DISCONNECTED;
+                    if (!failedCode) failedCode = FailedCode.UPSTREAM_DISCONNECTED;
                     break;
                 }
                 if (done) break;
@@ -276,37 +276,39 @@ async function handleStreamResponse(
 
         console.log(`[senderService] Stream ended, events: ${eventCount}, completed: ${streamCompleted}, failedCode: ${failedCode}`);
 
-        if (streamCompleted) {
-            // 流结束，保存完整响应到数据库
-            const fullResponse = accumulator.getResponse();
-            const usage = fullResponse.usage;
-            const promptTokens = usage?.prompt_tokens ?? 0;
-            const outputTokens = usage?.completion_tokens ?? 0;
-            const cacheReadTokens = usage?.cache_read_tokens ?? 0;
-            const cost = calculateCost(model, promptTokens + cacheReadTokens, outputTokens, cacheReadTokens);
+        runInBackground(c, async () => {
+            if (streamCompleted) {
+                // 流结束，保存完整响应到数据库
+                const fullResponse = accumulator.getResponse();
+                const usage = fullResponse.usage;
+                const promptTokens = usage?.prompt_tokens ?? 0;
+                const outputTokens = usage?.completion_tokens ?? 0;
+                const cacheReadTokens = usage?.cache_read_tokens ?? 0;
+                const cost = calculateCost(model, promptTokens + cacheReadTokens, outputTokens, cacheReadTokens);
 
-            await recordService.update(record.id, {
-                response_data: JSON.stringify(fullResponse),
-                status: SgRecordStatus.SUCCESS,
-                usage: usage ? JSON.stringify(usage) : null,
-                first_token_latency: firstTokenTime !== null
-                    ? firstTokenTime - record.created_at.getTime()
-                    : null,
-                end_at: new Date(),
-                cost: cost,
-            });
+                await recordService.update(record.id, {
+                    response_data: JSON.stringify(fullResponse),
+                    status: SgRecordStatus.SUCCESS,
+                    usage: usage ? JSON.stringify(usage) : null,
+                    first_token_latency: firstTokenTime !== null
+                        ? firstTokenTime - record.created_at.getTime()
+                        : null,
+                    end_at: new Date(),
+                    cost: cost,
+                });
 
-            // 扣除用户余额（仅非 Root 用户）
-            if (user.type !== "root") {
-                await userService.deductBalance(user.id, cost);
+                // 扣除用户余额（仅非 Root 用户）
+                if (user.type !== "root") {
+                    await userService.deductBalance(user.id, cost);
+                }
+            } else {
+                await recordService.update(record.id, {
+                    status: SgRecordStatus.FAILED,
+                    failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
+                    end_at: new Date(),
+                });
             }
-        } else {
-            await recordService.update(record.id, {
-                status: SgRecordStatus.FAILED,
-                failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
-                end_at: new Date(),
-            });
-        }
+        });
 
         logStream?.end();
     });
@@ -338,7 +340,7 @@ async function handleNonStreamResponse(
         }
     }
 
-    let normalizedUsage: NormalizedUsage | null = null;
+    let normalizedUsage: ReturnType<typeof normalizeUsage> | null = null;
     try {
         const responseJson = JSON.parse(responseText);
         normalizedUsage = normalizeUsage(upstreamFormat, responseJson.usage);
@@ -406,7 +408,7 @@ async function handleResponsesStreamResponse(
                     value = result.value;
                 } catch (e: any) {
                     console.error("[senderService] Upstream read error (responses):", e);
-                    failedCode = FailedCode.UPSTREAM_DISCONNECTED;
+                    if (!failedCode) failedCode = FailedCode.UPSTREAM_DISCONNECTED;
                     break;
                 }
                 if (done) break;
@@ -519,10 +521,12 @@ async function handleResponsesStreamResponse(
         c.req.raw.signal.removeEventListener("abort", abortHandler);
 
         if (!streamCompleted) {
-            await recordService.update(record.id, {
-                status: SgRecordStatus.FAILED,
-                failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
-                end_at: new Date(),
+            runInBackground(c, async () => {
+                await recordService.update(record.id, {
+                    status: SgRecordStatus.FAILED,
+                    failed_code: failedCode ?? FailedCode.STREAM_INCOMPLETE,
+                    end_at: new Date(),
+                });
             });
         }
 
@@ -555,7 +559,7 @@ async function handleResponsesNonStreamResponse(
         }
     }
 
-    let normalizedUsage: NormalizedUsage | null = null;
+    let normalizedUsage: ReturnType<typeof normalizeUsage> | null = null;
     try {
         const responseJson = JSON.parse(responseText);
         normalizedUsage = normalizeUsage(upstreamFormat, responseJson.usage);
@@ -733,7 +737,7 @@ async function sendRequest(
     // 4. 发起上游请求，拿到响应头后立即判断响应类型
     let upstreamRes: Response;
     try {
-        upstreamRes = await fetch(url, { method: "POST", headers: finalHeaders, body: upstreamBody });
+        upstreamRes = await fetch(url, { method: "POST", headers: finalHeaders, body: upstreamBody, signal: c.req.raw.signal });
     } catch (e: any) {
         console.error("Upstream fetch failed:", e);
         await recordService.update(record.id, {
