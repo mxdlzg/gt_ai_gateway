@@ -10,6 +10,7 @@ import senderService from "../../src/service/senderService";
 import { ConverterFactory } from "../../src/util/protocolConverter/ConverterFactory";
 import { ApiFormat } from "../../src/constants";
 import customError from "../../src/util/customError";
+import { SgVendor } from "../../src/model/sgVendor";
 
 function convertRequestBody(body: string, clientFormat: ApiFormat, upstreamFormat: ApiFormat): string {
     if (clientFormat !== upstreamFormat && (clientFormat === ApiFormat.RESPONSES || upstreamFormat === ApiFormat.RESPONSES)) {
@@ -22,6 +23,77 @@ function convertRequestBody(body: string, clientFormat: ApiFormat, upstreamForma
     if (!converter) return body;
     return converter.convertRequestBody(body);
 }
+
+
+function makeVendor(urls: Record<string, string>): SgVendor {
+    const vendor = new SgVendor();
+    vendor.type = "other" as any;
+    vendor.token = "test-token";
+    vendor.urls = JSON.stringify(urls);
+    return vendor;
+}
+
+
+describe("resolveUpstreamFormat", () => {
+    it("uses Responses for Anthropic client when model only allows Responses and vendor has an OpenAI base URL", () => {
+        const vendor = makeVendor({ openai: "https://api.openai.com/v1" });
+        const upstreamFormat = senderService.resolveUpstreamFormat(
+            vendor,
+            ApiFormat.ANTHROPIC,
+            ApiFormat.ANTHROPIC,
+            [ApiFormat.RESPONSES],
+        );
+
+        expect(upstreamFormat).toBe(ApiFormat.RESPONSES);
+    });
+
+    it("does not choose an allowed format without a supported conversion path", () => {
+        const vendor = makeVendor({ responses: "https://api.openai.com/v1/responses" });
+
+        expect(() => senderService.resolveUpstreamFormat(
+            vendor,
+            ApiFormat.OPENAI,
+            ApiFormat.OPENAI,
+            [ApiFormat.RESPONSES],
+        )).toThrow("Model does not support format: openai. Allowed: responses");
+    });
+});
+
+
+describe("normalizeUsage", () => {
+    it("reads cached tokens from OpenAI-compatible usage details on Responses format", () => {
+        const normalized = senderService.normalizeUsage(ApiFormat.RESPONSES, {
+            prompt_tokens: 100,
+            prompt_tokens_details: { cached_tokens: 40 },
+            completion_tokens: 12,
+            total_tokens: 112,
+        });
+
+        expect(normalized).not.toBeNull();
+        expect(normalized!.promptTokens).toBe(100);
+        expect(normalized!.outputTokens).toBe(12);
+        expect(normalized!.cacheReadTokens).toBe(40);
+        expect(normalized!.recordUsage.prompt_tokens).toBe(60);
+        expect(normalized!.recordUsage.completion_tokens).toBe(12);
+        expect(normalized!.recordUsage.cache_read_tokens).toBe(40);
+    });
+});
+
+
+describe("isResponsesOutputStartedEvent", () => {
+    it("treats function call and reasoning deltas as output start events", () => {
+        expect(senderService.isResponsesOutputStartedEvent("response.output_text.delta")).toBe(true);
+        expect(senderService.isResponsesOutputStartedEvent("response.function_call_arguments.delta")).toBe(true);
+        expect(senderService.isResponsesOutputStartedEvent("response.reasoning_summary_text.delta")).toBe(true);
+        expect(senderService.isResponsesOutputStartedEvent("response.output_item.added")).toBe(true);
+    });
+
+    it("does not treat lifecycle events as output start events", () => {
+        expect(senderService.isResponsesOutputStartedEvent("response.created")).toBe(false);
+        expect(senderService.isResponsesOutputStartedEvent("response.in_progress")).toBe(false);
+        expect(senderService.isResponsesOutputStartedEvent("response.completed")).toBe(false);
+    });
+});
 
 // ============================================================
 // 基础用例：同格式透传

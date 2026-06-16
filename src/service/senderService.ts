@@ -46,6 +46,49 @@ function calculateCost(
 type Dict = Record<string, unknown>;
 
 
+function canVendorServeFormat(vendor: SgVendor, format: ApiFormat): boolean {
+    try {
+        vendor.getUrlByFormat(format);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+
+function canConvertFormat(clientFormat: ApiFormat, upstreamFormat: ApiFormat): boolean {
+    if (clientFormat === upstreamFormat) {
+        return true;
+    }
+    return ConverterFactory.createPair(clientFormat, upstreamFormat) !== null;
+}
+
+
+function resolveUpstreamFormat(
+    vendor: SgVendor,
+    clientFormat: ApiFormat,
+    upstreamFormat: ApiFormat,
+    allowedFormats: ApiFormat[] | null | undefined,
+): ApiFormat {
+    if (!allowedFormats || allowedFormats.includes(upstreamFormat)) {
+        return upstreamFormat;
+    }
+
+    const override = allowedFormats.find((format) =>
+        canVendorServeFormat(vendor, format) &&
+        canConvertFormat(clientFormat, format),
+    );
+    if (override) {
+        return override;
+    }
+
+    throw new customError.AppError(
+        `Model does not support format: ${upstreamFormat}. Allowed: ${allowedFormats.join(", ")}`,
+        400,
+    );
+}
+
+
 function normalizeUsage(format: ApiFormat, usage: Dict | null | undefined) {
     if (!usage) return null;
 
@@ -82,6 +125,7 @@ function normalizeUsage(format: ApiFormat, usage: Dict | null | undefined) {
             ?? (usage.completion_tokens as number | undefined)
             ?? 0;
         cacheReadTokens = ((usage.input_tokens_details as Dict | undefined)?.cached_tokens as number | undefined)
+            ?? ((usage.prompt_tokens_details as Dict | undefined)?.cached_tokens as number | undefined)
             ?? (usage.cache_read_input_tokens as number | undefined)
             ?? (usage.cache_read_tokens as number | undefined)
             ?? 0;
@@ -91,6 +135,18 @@ function normalizeUsage(format: ApiFormat, usage: Dict | null | undefined) {
     recordUsage.completion_tokens = outputTokens;
     recordUsage.cache_read_tokens = cacheReadTokens;
     return { recordUsage, promptTokens, outputTokens, cacheReadTokens };
+}
+
+
+function isResponsesOutputStartedEvent(eventType: string): boolean {
+    return [
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.delta",
+        "response.function_call_arguments.delta",
+        "response.reasoning_summary_text.delta",
+        "response.reasoning_summary_part.added",
+    ].includes(eventType);
 }
 
 
@@ -337,6 +393,10 @@ async function handleNonStreamResponse(
             clientResponseText = JSON.stringify(clientRes);
         } catch (e) {
             console.error("[senderService] Failed to convert response format:", e);
+            throw new customError.AppError(
+                `Failed to convert upstream response format: ${e instanceof Error ? e.message : String(e)}`,
+                502,
+            );
         }
     }
 
@@ -456,7 +516,7 @@ async function handleResponsesStreamResponse(
                         } catch {}
                         const clientEventType = clientParsedData?.type ?? "";
 
-                        if (firstTokenTime === null && clientEventType === "response.output_text.delta") {
+                        if (firstTokenTime === null && isResponsesOutputStartedEvent(clientEventType)) {
                             firstTokenTime = Date.now();
                         }
 
@@ -556,6 +616,10 @@ async function handleResponsesNonStreamResponse(
             clientResponseText = JSON.stringify(clientRes);
         } catch (e) {
             console.error("[senderService] Failed to convert responses non-stream response:", e);
+            throw new customError.AppError(
+                `Failed to convert upstream response format: ${e instanceof Error ? e.message : String(e)}`,
+                502,
+            );
         }
     }
 
@@ -603,17 +667,7 @@ async function sendRequest(
     if (modelConfig.vendor_model_id) {
         const vendorModel = await SgVendorModel.query().find(modelConfig.vendor_model_id);
         const allowed = vendorModel?.getAllowedFormats();
-        if (allowed && !allowed.includes(upstreamFormat)) {
-            const urls = vendor.getMergedUrls();
-            const override = allowed.find(fmt => !!urls[fmt]);
-            if (override) {
-                upstreamFormat = override;
-            } else {
-                throw new customError.AppError(
-                    `Model does not support format: ${upstreamFormat}. Allowed: ${allowed.join(", ")}`, 400
-                );
-            }
-        }
+        upstreamFormat = resolveUpstreamFormat(vendor, format, upstreamFormat, allowed);
     }
 
     const needsConversion = format !== upstreamFormat;
@@ -771,5 +825,8 @@ async function sendRequest(
 
 
 export default {
+    isResponsesOutputStartedEvent,
+    normalizeUsage,
+    resolveUpstreamFormat,
     sendRequest,
 };
