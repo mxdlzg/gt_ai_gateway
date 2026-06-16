@@ -105,7 +105,8 @@ async function status(c: Context) {
 import updateService from "../service/updateService";
 
 async function checkUpdate(c: Context) {
-    const status = await updateService.checkUpdate(c as any);
+    const force = c.req.query('force') === '1' || c.req.query('force') === 'true';
+    const status = await updateService.checkUpdate(c as any, force);
     return c.json(status);
 }
 

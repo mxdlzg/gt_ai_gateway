@@ -43,9 +43,7 @@
                             <a-button 
                                 v-if="hasUpdate" 
                                 type="primary" 
-                                :href="updateUrl" 
-                                target="_blank"
-                                rel="noopener noreferrer"
+                                @click="openUpdateUrl"
                             >
                                 下载更新
                             </a-button>
@@ -124,7 +122,7 @@ function cancelChanges() {
 async function doCheckUpdate() {
     checkingUpdate.value = true;
     try {
-        const status = await checkUpdate();
+        const status = await checkUpdate(true);
         if (!status.success) {
             message.error(status.error_message || '检查更新失败');
             return;
@@ -145,6 +143,12 @@ async function doCheckUpdate() {
     } finally {
         checkingUpdate.value = false;
     }
+}
+
+import { openUrl } from '@/utils/platform';
+
+async function openUpdateUrl() {
+    await openUrl(updateUrl.value);
 }
 
 async function saveConfig(): Promise<void> {

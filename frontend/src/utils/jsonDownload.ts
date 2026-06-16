@@ -1,8 +1,10 @@
+import { isTauri } from '@/utils/platform';
+
 class JsonDownload {
     static async downloadJson(data: string, filename: string): Promise<boolean> {
         const formatted = JsonDownload.formatJson(data);
 
-        if (JsonDownload.isTauri()) {
+        if (isTauri()) {
             return await JsonDownload.saveWithTauri(filename, formatted);
         }
 
@@ -14,11 +16,6 @@ class JsonDownload {
     private static formatJson(data: string): string {
         const parsed = JSON.parse(data);
         return JSON.stringify(parsed, null, 2);
-    }
-
-
-    private static isTauri(): boolean {
-        return typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
     }
 
 

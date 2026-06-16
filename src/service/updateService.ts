@@ -24,12 +24,12 @@ let cachedStatus: UpdateStatus | null = null;
 let lastCheckTime = 0;
 const CHECK_INTERVAL = 1000 * 60 * 60 * 12; // 12 hours
 
-async function checkUpdate(ctx: SgContext): Promise<UpdateStatus> {
+async function checkUpdate(ctx: SgContext, force: boolean = false): Promise<UpdateStatus> {
     const currentVersion = packageJson.version;
     const now = Date.now();
 
     // Return cached status if within interval
-    if (cachedStatus && (now - lastCheckTime < CHECK_INTERVAL)) {
+    if (!force && cachedStatus && (now - lastCheckTime < CHECK_INTERVAL)) {
         return cachedStatus;
     }
 
