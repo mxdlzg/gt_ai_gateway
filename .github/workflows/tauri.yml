@@ -51,14 +51,6 @@ jobs:
       - name: Install tauri dependencies
         run: cd tauri && npm ci
 
-      - name: Build backend sidecar
-        run: |
-          if [ "${{ matrix.target }}" == "x86_64-apple-darwin" ]; then
-            npm run tauri:build-backend-x86_64
-          else
-            npm run tauri:build-backend-arm64
-          fi
-
       - name: Install Apple Certificate
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
@@ -75,6 +67,7 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_BUILD_TARGET: ${{ matrix.target }}
         with:
           projectPath: './tauri'
           args: '--target ${{ matrix.target }} --bundles app'
