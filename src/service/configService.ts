@@ -50,17 +50,18 @@ async function getConfig(name: ConfigKey | string, defaultValue: string = ""): P
 
 async function setValue(name: ConfigKey | string, value: string): Promise<SgConfig> {
     const key = name as string;
+    const strValue = String(value);
     const config = await SgConfig.query().where("name", key).first();
     
     let result: SgConfig;
     if (config) {
-        await config.update({ value });
+        await config.update({ value: strValue });
         result = config;
     } else {
-        result = await SgConfig.query().create({ name: key, value });
+        result = await SgConfig.query().create({ name: key, value: strValue });
     }
     
-    cache.set(key, value);
+    cache.set(key, strValue);
     return result;
 }
 

@@ -326,6 +326,14 @@ async function truncate(): Promise<void> {
     if (isWorkerMode) {
         // In worker mode, clear D1 tables only (admin user created via API)
         clearD1Tables();
+        
+        try {
+            await fetch(`http://127.0.0.1:${config.SERVER_CONFIG.port}/test/cache/clear`, {
+                method: "DELETE",
+            });
+        } catch (e) {
+            console.error("Failed to clear worker server cache:", e);
+        }
         return;
     }
 
@@ -345,6 +353,15 @@ async function truncate(): Promise<void> {
 
     // Clear config cache to ensure test isolation
     configService.clearCache();
+    
+    // Also clear the server process's config cache
+    try {
+        await fetch(`http://127.0.0.1:${config.SERVER_CONFIG.port}/test/cache/clear`, {
+            method: "DELETE",
+        });
+    } catch (e) {
+        console.error("Failed to clear server cache:", e);
+    }
 
     console.log("Tables truncated");
 }

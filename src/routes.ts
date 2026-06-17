@@ -12,6 +12,7 @@ import systemController from "./controller/systemController";
 import statsController from "./controller/statsController";
 import balanceController from "./controller/balanceController";
 import configController from "./controller/configController";
+import configService from "./service/configService";
 import ormService from "./service/ormService";
 import authMiddleware from "./middleware/authMiddleware";
 import corsMiddleware from "./middleware/corsMiddleware";
@@ -128,6 +129,17 @@ app.get("/stats/recent.json", authMiddleware.requireAdmin, statsController.recen
 app.post("/llm/v1/chat/completions", gatewayController.chatCompletions);
 app.post("/llm/v1/messages", gatewayController.anthropicMessages);
 app.post("/llm/v1/responses", gatewayController.responsesApi);
+
+// Test endpoints
+app.delete("/test/cache/clear", async (c) => {
+    // Only allow in test mode
+    const isTestMode = process.env.TEST_MODE || (c.env as any)?.TEST_MODE;
+    if (!isTestMode) {
+        return c.notFound();
+    }
+    configService.clearCache();
+    return c.json({ success: true });
+});
 
 // SPA fallback - serve index.html for all non-API routes
 // This handles frontend routes like /dashboard, /vendor, etc.
