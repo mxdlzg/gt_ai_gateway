@@ -25,22 +25,7 @@
                 </div>
             </div>
 
-            <div class="settings-section">
-                <h3 class="section-title">界面设置</h3>
-                <div class="settings-list">
-                    <div class="setting-item">
-                        <div class="setting-info">
-                            <div class="setting-title">退出开发者模式</div>
-                            <div class="setting-desc">关闭开发者选项并隐藏此页面。</div>
-                        </div>
-                        <div class="setting-action">
-                            <a-button @click="exitDeveloperMode">
-                                退出开发者模式
-                            </a-button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
 
             <div class="page-actions">
                 <a-button style="margin-right: 12px" :disabled="!isDirty || saving" @click="cancelChanges">
@@ -48,6 +33,12 @@
                 </a-button>
                 <a-button type="primary" :loading="saving" :disabled="!isDirty" @click="saveConfig">
                     保存配置
+                </a-button>
+            </div>
+            
+            <div style="margin-top: 24px; display: flex; justify-content: flex-end;">
+                <a-button type="link" style="color: var(--text-secondary, #8c8c8c)" @click="exitDeveloperMode">
+                    关闭开发者选项并退出
                 </a-button>
             </div>
         </a-spin>
