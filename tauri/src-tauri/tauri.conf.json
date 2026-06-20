@@ -20,11 +20,23 @@
                 "transparent": true,
                 "center": true,
                 "resizable": false,
-                "alwaysOnTop": true
+                "alwaysOnTop": true,
+                "devtools": true
+            },
+            {
+                "title": "GT AI Gateway",
+                "label": "main",
+                "url": "index.html",
+                "width": 1280,
+                "height": 800,
+                "resizable": true,
+                "visible": false,
+                "center": true,
+                "devtools": true
             }
         ],
         "security": {
-            "csp": "default-src 'self'; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+            "csp": "default-src 'self'; connect-src 'self' http://localhost:* ws://localhost:* http://127.0.0.1:* ws://127.0.0.1:*; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'"
         }
     },
     "bundle": {

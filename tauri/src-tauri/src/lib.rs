@@ -29,13 +29,17 @@ struct AuthToken(String);
 /// Tauri 命令：返回后端服务的实际 URL
 #[tauri::command]
 fn get_backend_url(state: tauri::State<BackendUrl>) -> String {
-    state.0.clone()
+    let url = state.0.clone();
+    println!("RUST: get_backend_url called, url={}", url);
+    url
 }
 
 /// Tauri 命令：返回 root token，供前端自动登录
 #[tauri::command]
 fn get_auth_token(state: tauri::State<AuthToken>) -> String {
-    state.0.clone()
+    let token = state.0.clone();
+    println!("RUST: get_auth_token called, token={:.8}...", token);
+    token
 }
 
 #[tauri::command]
@@ -67,6 +71,11 @@ fn check_backend_status() -> Result<(), i32> {
 #[tauri::command]
 fn is_backend_ready() -> bool {
     BACKEND_IS_READY.load(Ordering::SeqCst)
+}
+
+#[tauri::command]
+fn log_to_rust(msg: String) {
+    println!("RUST: FRONTEND_LOG: {}", msg);
 }
 
 struct AppConfig {
@@ -138,19 +147,33 @@ fn read_config(app_data_dir: &Path) -> AppConfig {
 
 
 fn show_main_window(app: &tauri::AppHandle) {
+    println!("RUST: show_main_window called");
+    // Also write to file for safety
+    let log_path = std::path::Path::new("C:\\Users\\111\\gt_ai_gateway\\rust_bootstrap.log");
+    match std::fs::write(log_path, "show_main_window_called\n") {
+        Ok(_) => println!("RUST: show_main_window debug log written"),
+        Err(e) => println!("RUST: FAILED to write debug log: {}", e),
+    }
     if let Some(window) = app.get_webview_window("main") {
+        println!("RUST: found existing main window, showing it");
         let _ = window.show();
         let _ = window.set_focus();
     } else {
-        let _ = tauri::WebviewWindowBuilder::new(
+        println!("RUST: creating new main window with index.html");
+        let result = tauri::WebviewWindowBuilder::new(
             app,
             "main",
             tauri::WebviewUrl::App("index.html".into())
         )
-        .title("")
+        .title("GT AI Gateway")
         .inner_size(1280.0, 800.0)
         .resizable(true)
         .build();
+
+        match result {
+            Ok(_) => println!("RUST: main window created successfully"),
+            Err(e) => println!("RUST: FAILED to create main window: {:?}", e),
+        }
     }
 }
 
@@ -160,7 +183,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![get_backend_url, get_auth_token, exit_app, open_main_window, check_backend_status, is_backend_ready])
+        .invoke_handler(tauri::generate_handler![get_backend_url, get_auth_token, exit_app, open_main_window, check_backend_status, is_backend_ready, log_to_rust])
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -169,11 +192,12 @@ pub fn run() {
                 .join("GtCoder")
                 .join("AiGateway");
 
+            let log_dir = app_data_dir.join("logs");
             fs::create_dir_all(&app_data_dir)?;
+            fs::create_dir_all(&log_dir)?;
 
             let db_path = app_data_dir.join("gateway.db");
             let config = read_config(&app_data_dir);
-            let log_dir = app_data_dir.join("logs");
 
             // sidecar 二进制与主可执行文件同目录（Tauri bundle 时去掉 target triple）
             let exe_dir = std::env::current_exe()
@@ -185,6 +209,15 @@ pub fn run() {
             let (mut cmd, migration_dir) = sys::platform::get_command(&exe_dir);
 
             // 设置环境变量
+            println!("RUST: exe_dir={:?}", exe_dir);
+            println!("RUST: data_dir={:?}", app_data_dir);
+            println!("RUST: log_dir={:?}", log_dir);
+            println!("RUST: db_path={:?}", db_path);
+            println!("RUST: port={}", config.port);
+            println!("RUST: migration_dir={:?}", migration_dir);
+            println!("RUST: HELLO_1");
+            println!("RUST: HELLO_2");
+
             cmd.env("DB_PATH", db_path.to_str().unwrap())
                .env("PORT", config.port.to_string())
                .env("HOST", &config.host)
@@ -205,6 +238,7 @@ pub fn run() {
             std::thread::spawn(move || {
                 use tauri::Emitter;
                 use std::io::{BufRead, BufReader};
+                println!("RUST: STDOUT_READER_THREAD_STARTED");
 
                 // 持续读取 stdout，直到进程退出管道关闭（这同时充当了 drain 的作用，防止子进程被阻塞）
                 if let Some(out) = stdout {
@@ -216,6 +250,10 @@ pub fn run() {
                             if line_str.contains("Server listening on") {
                                 BACKEND_IS_READY.store(true, Ordering::SeqCst);
                                 let _ = app_handle_clone.emit("backend-ready", ());
+                                match std::fs::write("C:\\Users\\111\\gt_ai_gateway\\rust_bootstrap.log", "backend_ready_event_emitted\n") {
+                                    Ok(_) => println!("RUST: backend-ready debug log written"),
+                                    Err(e) => println!("RUST: FAILED to write backend-ready debug log: {}", e),
+                                }
                             }
                         } else if let Err(e) = line {
                             println!("RUST STDOUT READ ERROR: {:?}", e);
