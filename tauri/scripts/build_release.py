@@ -127,7 +127,7 @@ def main():
 
     arch = "aarch64" if "aarch64" in target else "x86_64"
     version_suffix = f"_{version}" if version else ""
-    dmg_name = app_name.replace(".app", f"{version_suffix}_{arch}.dmg")
+    dmg_name = app_name.replace(".app", f"_macOS{version_suffix}_{arch}.dmg")
     dmg_path = os.path.join(dmg_out_dir, dmg_name)
     
     if os.path.exists(dmg_path):

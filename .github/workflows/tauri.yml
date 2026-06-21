@@ -155,12 +155,17 @@ jobs:
         run: |
           $artifactsDir = "windows-artifacts"
           New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
-          
-          # 1. NSIS setup
-          Get-ChildItem "tauri" -Recurse -Include "*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*setup*" } | Copy-Item -Destination $artifactsDir -Force -ErrorAction SilentlyContinue
-          
 
-          
+          # Find NSIS setup exe and rename to include platform name
+          $setupExe = Get-ChildItem "tauri" -Recurse -Include "*.exe" -ErrorAction SilentlyContinue | Where-Object { $_.Name -like "*setup*" } | Select-Object -First 1
+
+          if ($setupExe) {
+            # Insert _Windows before version: GT.AI.Gateway_1.6.0_x64-setup.exe -> GT.AI.Gateway_Windows_1.6.0_x64-setup
+            $baseName = $setupExe.Name -replace '_(\d+\.\d+\.\d+)_', '_Windows_$1_' -replace '\.exe$', ''
+            $zipPath = Join-Path $artifactsDir "$baseName.zip"
+            Compress-Archive -Path $setupExe.FullName -DestinationPath $zipPath -Force
+          }
+
           Get-ChildItem $artifactsDir | ForEach-Object { Write-Host "UPLOAD: $($_.Name) ($($_.Length) bytes)" }
 
       - name: Upload Artifacts
@@ -220,7 +225,7 @@ jobs:
         run: |
           tag="${GITHUB_REF_NAME}"
           mapfile -t dmg_assets < <(find release-artifacts -type f -name "*.dmg" 2>/dev/null | sort)
-          mapfile -t win_assets < <(find release-artifacts-win -type f \( -name "*.exe" -o -name "*.zip" \) 2>/dev/null | sort)
+          mapfile -t win_assets < <(find release-artifacts-win -type f -name "*.zip" 2>/dev/null | sort)
           assets=("${dmg_assets[@]}" "${win_assets[@]}")
 
           if gh release view "$tag" >/dev/null 2>&1; then
