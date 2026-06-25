@@ -87,7 +87,6 @@ class ClaudeCodeConfigAdapter extends BaseConfigAdapter {
             ...(config.env || {}),
             ANTHROPIC_BASE_URL: this.buildBaseUrl(params),
             ANTHROPIC_AUTH_TOKEN: params.apiKey,
-            CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY: "1",
         };
 
         if (params.model.trim()) {
