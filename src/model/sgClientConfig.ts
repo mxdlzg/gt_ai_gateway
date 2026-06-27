@@ -14,7 +14,7 @@ type ClientConfigContent = ClientConfigFields | Record<string, string>;
 
 
 class SgClientConfig extends Model {
-    table = "client_config_backup";
+    table = "client_config";
 
     id!: number;
     client!: ClientName;
