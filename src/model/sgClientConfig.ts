@@ -8,9 +8,10 @@ interface ClientConfigFields {
     apiKey: string;
     model: string;
     effortLevel?: string;
+    [key: string]: any;
 }
 
-type ClientConfigContent = ClientConfigFields | Record<string, string>;
+type ClientConfigContent = Record<string, any>;
 
 
 class SgClientConfig extends Model {

@@ -78,15 +78,6 @@ async function formatUniqueBackupName(client: ClientName, baseName: string): Pro
 }
 
 
-function serializeConfigContent(configContent: Record<string, string> | null | undefined): string {
-    const normalized: Record<string, string> = {};
-    for (const key of Object.keys(configContent || {}).sort()) {
-        normalized[key] = String(configContent?.[key] ?? "");
-    }
-
-    return JSON.stringify(normalized);
-}
-
 
 function isEnabled(value: unknown): boolean {
     return value === true || value === 1 || value === "1";
@@ -115,7 +106,7 @@ function extractFieldsFromBackup(backupContent: any, adapter: ConfigAdapter): Cl
 }
 
 async function toBackupInfo(record: SgClientConfig, adapter: ConfigAdapter): Promise<ClientConfigBackupInfo> {
-    const rawContent = typeof record.configContent === "string" ? JSON.parse(record.configContent) : record.configContent || {};
+    const rawContent = record.configContent || {};
     const parsedConfig = extractFieldsFromBackup(rawContent, adapter);
 
     return {
@@ -338,7 +329,7 @@ async function updateBackupConfig(params: UpdateClientConfigBackupParams): Promi
     };
 
     await backup.update({ configContent: fields });
-    backup.configContent = fields;
+    backup.configContent = fields as any;
 
     if (backup.enabled) {
         // If the backup being updated is currently enabled, apply changes to local config immediately
