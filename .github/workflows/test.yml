@@ -49,6 +49,9 @@ jobs:
       - name: Build frontend
         run: npm run frontend:build
 
+      - name: Run type check
+        run: npm run backend:test:type
+
       - name: Run tests (Node mode)
         run: npm run backend:test:node
 
