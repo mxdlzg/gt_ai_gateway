@@ -1,4 +1,5 @@
 mod sys;
+mod window_style;
 
 use std::fs;
 use std::path::Path;
@@ -157,20 +158,19 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.set_focus();
         return;
     }
-    let _ = tauri::WebviewWindowBuilder::new(
-        app,
-        "main",
-        tauri::WebviewUrl::App("index.html".into())
-    )
-    .title("GT AI Gateway")
-    .title_bar_style(tauri::TitleBarStyle::Transparent)
-    .hidden_title(true)
-    .inner_size(1280.0, 800.0)
-    .resizable(true)
-    .devtools(true)
-    .build()
-    .map(|_| println!("RUST: main window created successfully"))
-    .map_err(|e| println!("RUST: FAILED to create main window: {:?}", e));
+    let builder =
+        tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("index.html".into()))
+            .title("GT AI Gateway");
+
+    let builder = window_style::apply_main_window_style(builder);
+
+    let _ = builder
+        .inner_size(1280.0, 800.0)
+        .resizable(true)
+        .devtools(true)
+        .build()
+        .map(|_| println!("RUST: main window created successfully"))
+        .map_err(|e| println!("RUST: FAILED to create main window: {:?}", e));
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
