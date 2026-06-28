@@ -18,97 +18,95 @@
 | profile | `%LOCALAPPDATA%/Claude-3p/configLibrary/00000000-0000-4000-8000-000000157210.json` | Gateway 配置 |
 | meta | `%LOCALAPPDATA%/Claude-3p/configLibrary/_meta.json` | 元数据 |
 
-## 配置文件结构
+## 使用官方配置（OFFICIAL 模式）
 
-### normal_config / threep_config
+### 从哪些文件哪些字段生成备份
 
-```json
-{
-  "deploymentMode": "3p"
-}
-```
+Claude Desktop 使用快照机制，在切换前对全部 4 个文件做快照备份。
 
-### profile（核心配置）
+**normal_config**：
+- `deploymentMode`：当前部署模式
 
-```json
-{
-  "inferenceProvider": "gateway",
-  "inferenceGatewayBaseUrl": "http://127.0.0.1:8888/claude-desktop",
-  "inferenceGatewayApiKey": "ccs-xxx",
-  "inferenceGatewayAuthScheme": "bearer",
-  "inferenceModels": [
-    {
-      "id": "claude-sonnet-4-6",
-      "name": "Sonnet 4.6",
-      "contextLength": 200000,
-      "maxTokens": 64000
-    }
-  ]
-}
-```
+**threep_config**：
+- `deploymentMode`：当前部署模式
+- 所有 gateway 相关字段
 
-### meta
+**profile**：
+- 整个文件内容（包含 `inferenceProvider`、`inferenceGatewayBaseUrl`、`inferenceGatewayApiKey`、`inferenceModels` 等）
 
-```json
-{
-  "entries": [
-    {
-      "id": "00000000-0000-4000-8000-000000157210",
-      "name": "CC Switch"
-    }
-  ],
-  "appliedId": "00000000-0000-4000-8000-000000157210"
-}
-```
+**meta**：
+- `entries` 数组：所有配置条目
+- `appliedId`：当前生效的配置 ID
 
-## 写入流程
+### 恢复的时候，写入到哪些文件哪些字段
 
-核心入口：`apply_provider(provider)`
+**normal_config**：
+- 写入 `{"deploymentMode": "1p"}`
 
-### OFFICIAL 模式
+**threep_config**：
+- 写入 `{"deploymentMode": "1p"}`，清除 gateway 字段
 
-**触发条件**：供应商 ID 等于官方 ID
+**profile**：
+- **删除**该文件
 
-**写入操作**：
-1. normal_config：写入 `{"deploymentMode": "1p"}`
-2. threep_config：写入 `{"deploymentMode": "1p"}`，清除 gateway 字段
-3. profile：**删除**该文件
-4. meta：移除 CC Switch 条目，清空 `appliedId`
+**meta**：
+- 移除 CC Switch 条目（ID 为 `00000000-0000-4000-8000-000000157210`）
+- 清空 `appliedId`
 
-### 第三方模式（Direct 或 Proxy）
+## 使用供应商/网关（GATEWAY/VENDOR 模式）
 
-**写入操作**：
-1. normal_config：写入 `{"deploymentMode": "3p"}`
-2. threep_config：写入 `{"deploymentMode": "3p"}`
-3. profile：写入完整的 gateway 配置
-4. meta：添加 CC Switch 条目，设置 `appliedId`
+### 从哪些文件哪些字段生成备份
+
+Claude Desktop 使用快照机制，在切换前对全部 4 个文件做快照备份。
+
+**normal_config**：
+- `deploymentMode`：当前部署模式
+
+**threep_config**：
+- `deploymentMode`：当前部署模式
+- 所有 gateway 相关字段
+
+**profile**（如果存在）：
+- 整个文件内容（包含 `inferenceProvider`、`inferenceGatewayBaseUrl`、`inferenceGatewayApiKey`、`inferenceModels` 等）
+
+**meta**：
+- `entries` 数组：所有配置条目
+- `appliedId`：当前生效的配置 ID
+
+### 恢复的时候，写入到哪些文件哪些字段
+
+**normal_config**：
+- 写入 `{"deploymentMode": "3p"}`
+
+**threep_config**：
+- 写入 `{"deploymentMode": "3p"}`
+
+**profile**（核心配置）：
+- `inferenceProvider`：设为 `"gateway"`
+- `inferenceGatewayBaseUrl`：网关端点 URL
+- `inferenceGatewayApiKey`：网关 API Key（格式为 `ccs-{uuid}`）
+- `inferenceGatewayAuthScheme`：设为 `"bearer"`
+- `inferenceModels`：模型列表（包含 `id`、`name`、`contextLength`、`maxTokens`）
+
+**meta**：
+- 添加 CC Switch 条目（ID 为 `00000000-0000-4000-8000-000000157210`，名称为 `"CC Switch"`）
+- 设置 `appliedId` 为 CC Switch 条目 ID
 
 ## Direct 模式 vs Proxy 模式
 
-### Direct 模式
+Claude Desktop 的第三方模式分为 Direct 和 Proxy 两种，profile 配置的字段来源不同：
 
-Claude Desktop 直接连接上游网关（如 Anthropic 兼容端点）。
+| 字段 | Direct 模式 | Proxy 模式 |
+|------|------------|------------|
+| `inferenceGatewayBaseUrl` | `provider.settings_config.env.ANTHROPIC_BASE_URL` | `http://127.0.0.1:{port}/claude-desktop` |
+| `inferenceGatewayApiKey` | `provider.settings_config.env.ANTHROPIC_AUTH_TOKEN` | 本地生成的 gateway token（`ccs-{uuid}`） |
 
-| 字段 | 来源 |
-|------|------|
-| `inferenceGatewayBaseUrl` | `provider.settings_config.env.ANTHROPIC_BASE_URL` |
-| `inferenceGatewayApiKey` | `provider.settings_config.env.ANTHROPIC_AUTH_TOKEN` |
-
-**限制**：
+**Direct 模式限制**：
 - 仅支持 Anthropic 原生 Messages API 格式
 - 模型名必须是 `claude-*` 安全名称
 - 不支持 GitHub Copilot / Codex OAuth 等需要本地代理的供应商
 
-### Proxy 模式
-
-Claude Desktop 连接到本地 CC Switch 代理。
-
-| 字段 | 来源 |
-|------|------|
-| `inferenceGatewayBaseUrl` | `http://127.0.0.1:{port}/claude-desktop` |
-| `inferenceGatewayApiKey` | 本地生成的 gateway token（`ccs-{uuid}`） |
-
-**优势**：
+**Proxy 模式优势**：
 - 支持任意模型名（如 `kimi-k2` 映射为 `claude-sonnet-4-6`）
 - 支持 `openai_chat`、`openai_responses`、`gemini_native` 等多种 API 格式
 - 支持 GitHub Copilot / Codex OAuth 供应商

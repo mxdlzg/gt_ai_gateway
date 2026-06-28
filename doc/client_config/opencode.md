@@ -45,20 +45,41 @@
 }
 ```
 
-## 写入流程
+## 使用官方配置（OFFICIAL 模式）
 
-核心模型：**单文件、read-modify-write、additive（累加模式）**
+OpenCode **不区分** OFFICIAL 和 GATEWAY/VENDOR 模式。所有 provider 写入 `opencode.json` 的逻辑相同，区分点在上层调用者通过 `live_config_managed` 字段控制是否调用写入。
 
-所有写入最终汇聚到 `write_opencode_config()`，将完整 JSON 写入 `opencode.json`。
+### 从哪些文件哪些字段生成备份
 
-### 写入 Provider
+**opencode.json**：
+- `provider` 对象：所有已配置的 provider 条目
+- `mcp` 对象：所有已配置的 MCP server 条目
+- `plugin` 数组：所有已添加的插件
 
-**触发条件**：provider 的 `live_config_managed != false`
+### 恢复的时候，写入到哪些文件哪些字段
 
-**写入流程**：
-1. 读取现有 `opencode.json`
-2. 在 `provider` 对象中设置/更新对应 ID 的条目
-3. 写回 `opencode.json`
+**opencode.json**（删除 Provider）：
+- 从 `provider` 对象中删除对应 ID 的条目
+- 写回 `opencode.json`
+
+## 使用供应商/网关（GATEWAY/VENDOR 模式）
+
+### 从哪些文件哪些字段生成备份
+
+**opencode.json**：
+- `provider` 对象：所有已配置的 provider 条目
+- `mcp` 对象：所有已配置的 MCP server 条目
+- `plugin` 数组：所有已添加的插件
+
+### 恢复的时候，写入到哪些文件哪些字段
+
+**opencode.json**（写入 Provider）：
+
+触发条件：provider 的 `live_config_managed != false`
+
+- 读取现有 `opencode.json`
+- 在 `provider` 对象中设置/更新对应 ID 的条目
+- 写回 `opencode.json`
 
 **数据结构**：
 ```json
@@ -73,45 +94,32 @@
 }
 ```
 
-### 删除 Provider
+**opencode.json**（MCP Server 同步）：
 
-**写入流程**：
-1. 读取现有 `opencode.json`
-2. 从 `provider` 对象中删除对应 ID 的条目
-3. 写回 `opencode.json`
+触发条件：`~/.config/opencode/` 目录存在
 
-### MCP Server 同步
+新增/更新：
+- 转换为 OpenCode 格式
+- 在 `mcp` 对象中设置/更新对应 ID 的条目
+- 写回 `opencode.json`
 
-**触发条件**：`~/.config/opencode/` 目录存在
+删除：
+- 从 `mcp` 对象中删除对应 ID 的条目
+- 写回 `opencode.json`
 
-**新增/更新**：
-1. 转换为 OpenCode 格式
-2. 在 `mcp` 对象中设置/更新对应 ID 的条目
-3. 写回 `opencode.json`
+**opencode.json**（Plugin 管理）：
 
-**删除**：
-1. 从 `mcp` 对象中删除对应 ID 的条目
-2. 写回 `opencode.json`
+添加：
+- 在 `plugin` 数组中添加插件名
+- 写回 `opencode.json`
 
-### Plugin 管理
-
-**添加**：
-1. 在 `plugin` 数组中添加插件名
-2. 写回 `opencode.json`
-
-**删除**：
-1. 按前缀过滤 `plugin` 数组
-2. 写回 `opencode.json`
+删除：
+- 按前缀过滤 `plugin` 数组
+- 写回 `opencode.json`
 
 **互斥规则**：
 - `oh-my-openagent` / `oh-my-opencode`（standard）和 `oh-my-opencode-slim` 不能共存
 - 添加 standard 类插件时，先清除 slim 类；反之亦然
-
-## OFFICIAL 模式 vs GATEWAY/VENDOR 模式
-
-OpenCode **不区分** OFFICIAL 和 GATEWAY/VENDOR 模式。
-
-所有 provider 写入 `opencode.json` 的逻辑相同，区分点在上层调用者通过 `live_config_managed` 字段控制是否调用写入。
 
 ## Token 存储位置
 

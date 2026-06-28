@@ -10,72 +10,42 @@
 | settings.json | `~/.gemini/settings.json` | JSON | 客户端配置（认证类型等） |
 | oauth_creds.json | `~/.gemini/oauth_creds.json` | JSON | OAuth 凭据（由 Gemini CLI 管理） |
 
-## 配置文件结构
+## 使用官方配置（OFFICIAL 模式）
 
-### .env
+### 从哪些文件哪些字段生成备份
 
-```env
-GEMINI_API_KEY=AIza...
-GEMINI_MODEL=gemini-2.5-pro
-GOOGLE_GEMINI_BASE_URL=https://...
-```
+**.env**：
+- `GEMINI_API_KEY`：API Key（如果有）
+- `GEMINI_MODEL`：模型名称（如果有）
+- `GOOGLE_GEMINI_BASE_URL`：Base URL（如果有）
+- 其他所有环境变量
 
-### settings.json
+**settings.json**：
+- `security.auth.selectedType`：认证类型（`"gemini-api-key"` 或 `"oauth-personal"`）
+- 其他所有字段（如 `mcpServers`）
 
-```json
-{
-  "security": {
-    "auth": {
-      "selectedType": "gemini-api-key"
-    }
-  },
-  "mcpServers": {
-    "...": "..."
-  }
-}
-```
+**oauth_creds.json**：
+- 整个文件内容（OAuth 凭据，由 Gemini CLI 管理）
 
-`selectedType` 可选值：
-- `gemini-api-key`：使用 API Key 认证
-- `oauth-personal`：使用 OAuth 认证（官方模式）
+### 恢复的时候，写入到哪些文件哪些字段
 
-## 写入流程
+**认证类型检测**：
 
-核心入口：`write_gemini_live(provider)`
+首先根据供应商信息检测认证类型：
 
-### 步骤一：检测认证类型
+| 条件 | 认证类型 |
+|------|----------|
+| `partner_promotion_key == "google-official"` | GoogleOfficial |
+| 供应商名称等于 `"google"` 或以 `"google "` 开头 | GoogleOfficial |
+| `partner_promotion_key == "packycode"` | Packycode |
+| 名称/URL/`GOOGLE_GEMINI_BASE_URL` 包含 `"packycode"`、`"packyapi"` 或 `"packy"` | Packycode |
+| 其他 | Generic |
 
-```
-GeminiAuthType::GoogleOfficial  -- 官方 Google 供应商
-GeminiAuthType::Packycode       -- Packycode 供应商
-GeminiAuthType::Generic         -- 通用第三方供应商
-```
-
-**检测规则**：
-1. `partner_promotion_key == "google-official"` → GoogleOfficial
-2. 供应商名称等于 `"google"` 或以 `"google "` 开头 → GoogleOfficial
-3. `partner_promotion_key == "packycode"` → Packycode
-4. 名称/URL/`GOOGLE_GEMINI_BASE_URL` 包含 `"packycode"`、`"packyapi"` 或 `"packy"` → Packycode
-5. 其他 → Generic
-
-### 步骤二：提取环境变量
-
-从 `provider.settings_config` JSON 中的 `env` 字段提取键值对。
-
-### 步骤三：处理 settings.json
-
+**settings.json**：
 - 如果 `provider.settings_config` 有 `config` 字段且为对象：与现有 `settings.json` **合并**（保留 `mcpServers` 等其他字段）
 - 如果 `config` 为 null 或不存在：**不修改**已有的 `settings.json`
 
-### 步骤四：写入 .env
-
-| 认证类型 | 写入内容 | 验证要求 |
-|----------|----------|----------|
-| GoogleOfficial | 直接写入 env_map | 无 |
-| Packycode | env_map | **必须**包含 `GEMINI_API_KEY` |
-| Generic | env_map | **必须**包含 `GEMINI_API_KEY` |
-
-### 步骤五：设置认证模式标记
+**认证模式标记**：
 
 | 认证类型 | settings.json 写入 |
 |----------|-------------------|
@@ -83,23 +53,43 @@ GeminiAuthType::Generic         -- 通用第三方供应商
 | Packycode | `security.auth.selectedType = "gemini-api-key"` |
 | Generic | `security.auth.selectedType = "gemini-api-key"` |
 
-## OFFICIAL 模式 vs GATEWAY/VENDOR 模式
+**.env**：
 
-### GoogleOfficial（官方模式）
+从 `provider.settings_config.env` 提取键值对写入。
 
-| 操作 | 内容 |
-|------|------|
-| .env | 不包含 `GEMINI_API_KEY`，直接写入用户提供的环境变量 |
-| settings.json | `selectedType = "oauth-personal"` |
-| 认证方式 | OAuth（通过 `oauth_creds.json`） |
+| 认证类型 | 写入内容 | 验证要求 |
+|----------|----------|----------|
+| GoogleOfficial | 直接写入 env_map | 无 |
+| Packycode | env_map | **必须**包含 `GEMINI_API_KEY` |
+| Generic | env_map | **必须**包含 `GEMINI_API_KEY` |
 
-### Packycode / Generic（第三方模式）
+## 使用供应商/网关（GATEWAY/VENDOR 模式）
 
-| 操作 | 内容 |
-|------|------|
-| .env | **必须**包含 `GEMINI_API_KEY` |
-| settings.json | `selectedType = "gemini-api-key"` |
-| 认证方式 | API Key |
+### 从哪些文件哪些字段生成备份
+
+**.env**：
+- `GEMINI_API_KEY`：API Key（如果有）
+- `GEMINI_MODEL`：模型名称（如果有）
+- `GOOGLE_GEMINI_BASE_URL`：Base URL（如果有）
+- 其他所有环境变量
+
+**settings.json**：
+- `security.auth.selectedType`：认证类型
+- 其他所有字段（如 `mcpServers`）
+
+**oauth_creds.json**：
+- 整个文件内容（OAuth 凭据，由 Gemini CLI 管理）
+
+### 恢复的时候，写入到哪些文件哪些字段
+
+**settings.json**：
+- 如果 `provider.settings_config` 有 `config` 字段且为对象：与现有 `settings.json` **合并**（保留 `mcpServers` 等其他字段）
+- 如果 `config` 为 null 或不存在：**不修改**已有的 `settings.json`
+- `security.auth.selectedType`：设为 `"gemini-api-key"`（第三方模式统一使用 API Key 认证）
+
+**.env**：
+- 从 `provider.settings_config.env` 提取键值对写入
+- **必须**包含 `GEMINI_API_KEY`（验证要求）
 
 ## 安全特性
 
