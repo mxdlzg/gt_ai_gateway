@@ -52,13 +52,13 @@ describe("resolveUpstreamFormat", () => {
         expect(upstreamFormat).toBe(ApiFormat.OPENAI);
     });
 
-    it("converts Responses to OPENAI when vendor only supports OPENAI", () => {
+    it("converts Responses to ANTHROPIC when vendor supports ANTHROPIC", () => {
         const upstreamFormat = senderService.resolveUpstreamFormat(
             ApiFormat.RESPONSES,
-            [ApiFormat.OPENAI],
+            [ApiFormat.ANTHROPIC],
         );
 
-        expect(upstreamFormat).toBe(ApiFormat.OPENAI);
+        expect(upstreamFormat).toBe(ApiFormat.ANTHROPIC);
     });
 
     it("converts ANTHROPIC to OPENAI when vendor only supports OPENAI", () => {

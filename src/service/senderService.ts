@@ -65,12 +65,7 @@ function resolveUpstreamFormat(
         return clientFormat;
     }
 
-    // Responses 格式：如果没有 urls[RESPONSES]，但有 urls[OPENAI]，则使用 OPENAI 格式
-    if (clientFormat === ApiFormat.RESPONSES && supportedFormats.includes(ApiFormat.OPENAI)) {
-        return ApiFormat.OPENAI;
-    }
-
-    // 尝试其他支持的格式
+    // 尝试其他支持的格式（按优先级排序）
     const supportedAlternativeFormats: Partial<Record<ApiFormat, ApiFormat[]>> = {
         [ApiFormat.OPENAI]: [ApiFormat.ANTHROPIC],
         [ApiFormat.ANTHROPIC]: [ApiFormat.OPENAI, ApiFormat.RESPONSES],
