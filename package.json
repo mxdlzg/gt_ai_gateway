@@ -46,11 +46,13 @@
   "dependencies": {
     "@fortaine/fetch-event-source": "^3.0.6",
     "@hono/node-server": "^1.19.9",
+    "@iarna/toml": "^2.2.5",
     "@types/node": "^24.0.13",
     "better-sqlite3": "^12.6.2",
     "dotenv": "^17.3.1",
     "hono": "^4.12.3",
     "knex-cloudflare-d1": "^0.1.1",
+    "smol-toml": "^1.7.0",
     "sutando": "^1.7.2",
     "tsx": "^4.20.0",
     "uuid": "^11.1.0"
