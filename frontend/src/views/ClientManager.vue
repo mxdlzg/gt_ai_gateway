@@ -680,6 +680,17 @@ function addBackup(backup: ClientConfigBackupInfo): void {
     gap: 16px;
     grid-template-columns: auto minmax(0, 1fr) auto;
     padding: 12px 16px;
+    transition: all 0.2s ease;
+}
+
+.config-row:not(.active-config-row) {
+    opacity: 0.65;
+    filter: grayscale(100%);
+}
+
+.config-row:not(.active-config-row):hover {
+    opacity: 1;
+    filter: grayscale(0%);
 }
 
 .icon-placeholder {
