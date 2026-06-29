@@ -93,6 +93,9 @@ async function startServer() {
         mode: "node",
         dbPath: DB_PATH,
     });
+    
+    // 校验数据库表结构
+    await ormService.verifySchema();
 
     // 启动服务器
     const port = parseInt(hostService.getLocalPort(), 10);
