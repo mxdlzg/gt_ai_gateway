@@ -123,7 +123,6 @@ export const useRecordStore = defineStore('record', () => {
                 user_name: null,
                 model_name: null,
                 vendor_name: null,
-                vendor_model_name: null,
             };
 
             // 并行查询用户和模型信息
