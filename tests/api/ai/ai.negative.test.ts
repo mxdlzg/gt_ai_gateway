@@ -98,8 +98,14 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("Authorization");
+            expect(response.body).toEqual({
+                error: {
+                    message: expect.stringContaining("Authorization"),
+                    type: "authentication_error",
+                    param: null,
+                    code: "authentication_error"
+                }
+            });
         }, 30000);
 
         it("should return 401 when token is invalid", async () => {
@@ -114,8 +120,14 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("user not found");
+            expect(response.body).toEqual({
+                error: {
+                    message: expect.stringContaining("user not found"),
+                    type: "authentication_error",
+                    param: null,
+                    code: "authentication_error"
+                }
+            });
         }, 30000);
 
         it("should return 403 when user is disabled", async () => {
@@ -130,8 +142,14 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(403);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("User disabled");
+            expect(response.body).toEqual({
+                error: {
+                    message: expect.stringContaining("User disabled"),
+                    type: "authentication_error",
+                    param: null,
+                    code: "authentication_error"
+                }
+            });
         }, 30000);
 
         it("should return 401 when model does not exist", async () => {
@@ -145,9 +163,15 @@ describe("AI Chat API (Negative)", () => {
                 testUserToken,
             );
 
-            expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("model not found");
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({
+                error: {
+                    message: expect.stringContaining("model not found"),
+                    type: "not_found_error",
+                    param: null,
+                    code: "not_found_error"
+                }
+            });
         }, 30000);
     });
 
@@ -164,8 +188,13 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("x-api-key");
+            expect(response.body).toEqual({
+                type: "error",
+                error: {
+                    type: "authentication_error",
+                    message: expect.stringContaining("x-api-key")
+                }
+            });
         }, 30000);
 
         it("should return 401 when token is invalid", async () => {
@@ -180,8 +209,13 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("user not found");
+            expect(response.body).toEqual({
+                type: "error",
+                error: {
+                    type: "authentication_error",
+                    message: expect.stringContaining("user not found")
+                }
+            });
         }, 30000);
 
         it("should return 403 when user is disabled", async () => {
@@ -196,8 +230,13 @@ describe("AI Chat API (Negative)", () => {
             );
 
             expect(response.status).toBe(403);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("User disabled");
+            expect(response.body).toEqual({
+                type: "error",
+                error: {
+                    type: "authentication_error",
+                    message: expect.stringContaining("User disabled")
+                }
+            });
         }, 30000);
 
         it("should return 401 when model does not exist", async () => {
@@ -211,9 +250,14 @@ describe("AI Chat API (Negative)", () => {
                 testUserToken,
             );
 
-            expect(response.status).toBe(401);
-            expect(response.body).toHaveProperty("error");
-            expect(response.body.error).toContain("model not found");
+            expect(response.status).toBe(404);
+            expect(response.body).toEqual({
+                type: "error",
+                error: {
+                    type: "not_found_error",
+                    message: expect.stringContaining("model not found")
+                }
+            });
         }, 30000);
     });
 });

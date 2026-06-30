@@ -1,5 +1,6 @@
 import { Hono, MiddlewareHandler } from "hono";
 import { HTTPException } from "hono/http-exception";
+import { ApiFormat } from "./constants";
 
 import gatewayController from "./controller/gatewayController";
 import modelController from "./controller/modelController";
@@ -26,6 +27,7 @@ interface Env {
 
 type Variables = {
     user_type: string;
+    api_format?: ApiFormat;
 };
 
 const dbMiddleware: MiddlewareHandler<{ Bindings: Env }> = async (c, next) => {
@@ -59,6 +61,12 @@ app.onError((err, c) => {
 
     // 记录错误日志
     console.error(`[Error] ${c.req.method} ${c.req.path}:`, err);
+
+    const apiFormat = c.get("api_format");
+    if (apiFormat) {
+        const formatted = customError.buildLlmErrorResponse(err as any, apiFormat);
+        return c.json(formatted, statusCode as any);
+    }
 
     if (error.statusCode && message) {
         return c.json(

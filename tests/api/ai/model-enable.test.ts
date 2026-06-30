@@ -76,8 +76,8 @@ describe("Gateway - Model Enable Filter", () => {
             normalToken,
         );
 
-        expect(response.status).toBe(401);
-        expect(response.body.error).toBe("model not found");
+        expect(response.status).toBe(404);
+        expect(response.body.error.message).toBe("model not found");
     });
 
     it("should allow request to enabled model", async () => {
@@ -110,7 +110,7 @@ describe("Gateway - Model Enable Filter", () => {
             normalToken,
         );
 
-        expect(response.status).toBe(401);
-        expect(response.body.error).toBe("model not found");
+        expect(response.status).toBe(404);
+        expect(response.body.error.message).toBe("model not found");
     });
 });

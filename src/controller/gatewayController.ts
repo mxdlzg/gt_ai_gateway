@@ -6,8 +6,10 @@ import { SgModel } from "../model/sgModel";
 import { SgUser } from "../model/sgUser";
 import { SgVendor } from "../model/sgVendor";
 import { ApiFormat, UserStatus } from "../constants";
+import customError from "../util/customError";
 
 async function chatCompletions(c: Context) {
+    c.set("api_format", ApiFormat.OPENAI);
     let body: string = await c.req.text();
     console.log("body:", body);
 
@@ -15,12 +17,12 @@ async function chatCompletions(c: Context) {
     const authHeader = c.req.header("Authorization");
 
     if (!authHeader) {
-        return c.json({ error: "Authorization header is missing" }, 401);
+        throw new customError.AppError("Authorization header is missing", 401, "authentication_error");
     }
 
     // 检查 Authorization header 是否以 "Bearer " 开头
     if (!authHeader.startsWith("Bearer ")) {
-        return c.json({ error: "Invalid token format" }, 401);
+        throw new customError.AppError("Invalid token format", 401, "authentication_error");
     }
 
     // 提取 token
@@ -28,11 +30,11 @@ async function chatCompletions(c: Context) {
     const user = await userService.getUserByToken(token!, c.env.ROOT_TOKEN);
 
     if (user == null) {
-        return c.json({ error: "Invalid token (user not found)" }, 401);
+        throw new customError.AppError("Invalid token (user not found)", 401, "authentication_error");
     }
 
     if (user.status === UserStatus.DISABLED) {
-        return c.json({ error: "User disabled" }, 403);
+        throw new customError.AppError("User disabled", 403, "authentication_error");
     }
 
     //解析请求
@@ -45,7 +47,7 @@ async function chatCompletions(c: Context) {
     console.log("modelConfig:", modelConfig);
 
     if (modelConfig == null) {
-        return c.json({ error: "model not found" }, 401);
+        throw new customError.NotFoundError("model not found");
     }
 
     //获取 vendor 配置
@@ -55,13 +57,14 @@ async function chatCompletions(c: Context) {
     console.log("vendor:", vendor);
 
     if (vendor == null) {
-        return c.json({ error: "vendor not found" }, 401);
+        throw new customError.NotFoundError("vendor not found");
     }
 
     return sender.sendRequest(c, user!, modelConfig!, vendor!, ApiFormat.OPENAI, body);
 }
 
 async function anthropicMessages(c: Context) {
+    c.set("api_format", ApiFormat.ANTHROPIC);
     let body: string = await c.req.text();
     console.log("body:", body);
 
@@ -78,20 +81,17 @@ async function anthropicMessages(c: Context) {
     }
 
     if (!token) {
-        return c.json(
-            { error: "x-api-key or Authorization header is missing" },
-            401,
-        );
+        throw new customError.AppError("x-api-key or Authorization header is missing", 401, "authentication_error");
     }
 
     const user = await userService.getUserByToken(token!, c.env.ROOT_TOKEN);
 
     if (user == null) {
-        return c.json({ error: "Invalid token (user not found)" }, 401);
+        throw new customError.AppError("Invalid token (user not found)", 401, "authentication_error");
     }
 
     if (user.status === UserStatus.DISABLED) {
-        return c.json({ error: "User disabled" }, 403);
+        throw new customError.AppError("User disabled", 403, "authentication_error");
     }
 
     //解析请求
@@ -104,7 +104,7 @@ async function anthropicMessages(c: Context) {
     console.log("modelConfig:", modelConfig);
 
     if (modelConfig == null) {
-        return c.json({ error: "model not found" }, 401);
+        throw new customError.NotFoundError("model not found");
     }
 
     //获取 vendor 配置
@@ -114,42 +114,43 @@ async function anthropicMessages(c: Context) {
     console.log("vendor:", vendor);
 
     if (vendor == null) {
-        return c.json({ error: "vendor not found" }, 401);
+        throw new customError.NotFoundError("vendor not found");
     }
 
     return sender.sendRequest(c, user, modelConfig, vendor, ApiFormat.ANTHROPIC, body);
 }
 
 async function responsesApi(c: Context) {
+    c.set("api_format", ApiFormat.RESPONSES);
     let body: string = await c.req.text();
 
     const authHeader = c.req.header("Authorization");
     if (!authHeader) {
-        return c.json({ error: "Authorization header is missing" }, 401);
+        throw new customError.AppError("Authorization header is missing", 401, "authentication_error");
     }
     if (!authHeader.startsWith("Bearer ")) {
-        return c.json({ error: "Invalid token format" }, 401);
+        throw new customError.AppError("Invalid token format", 401, "authentication_error");
     }
 
     const token = authHeader.split(" ")[1];
     const user = await userService.getUserByToken(token!, c.env.ROOT_TOKEN);
     if (user == null) {
-        return c.json({ error: "Invalid token (user not found)" }, 401);
+        throw new customError.AppError("Invalid token (user not found)", 401, "authentication_error");
     }
     if (user.status === UserStatus.DISABLED) {
-        return c.json({ error: "User disabled" }, 403);
+        throw new customError.AppError("User disabled", 403, "authentication_error");
     }
 
     let bodyDict = JSON.parse(body);
     const modelName = bodyDict.model;
     const modelConfig: SgModel | null = await modelService.getModel(modelName, true);
     if (modelConfig == null) {
-        return c.json({ error: "model not found" }, 401);
+        throw new customError.NotFoundError("model not found");
     }
 
     const vendor: SgVendor | null = await SgVendor.query().find(modelConfig!.vendor_id!);
     if (vendor == null) {
-        return c.json({ error: "vendor not found" }, 401);
+        throw new customError.NotFoundError("vendor not found");
     }
 
     return sender.sendRequest(c, user!, modelConfig!, vendor!, ApiFormat.RESPONSES, body);

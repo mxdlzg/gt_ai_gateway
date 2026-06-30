@@ -171,6 +171,7 @@ function startTestServer(): Promise<void> {
             env.PORT = port.toString();
             env.DB_PATH = config.DB_CONFIG.path;
             env.ROOT_TOKEN = "root-token-123";
+            env.TEST_MODE = "node";
         }
 
         console.log(
