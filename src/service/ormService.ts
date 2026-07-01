@@ -23,16 +23,19 @@ class ORMService {
                 throw new customError.AppError("dbPath is required for node mode", 500);
             }
             const Database = (await import("better-sqlite3")).default;
+            const nativeBinding = process.env.BETTER_SQLITE3_NATIVE_BINDING?.trim();
+            const sqliteOptions = nativeBinding ? { nativeBinding } : {};
 
             sutando.addConnection({
                 client: "better-sqlite3",
                 connection: {
                     filename: dbPath,
+                    options: sqliteOptions,
                 },
                 useNullAsDefault: true,
             });
 
-            const db = new Database(dbPath);
+            const db = new Database(dbPath, sqliteOptions);
             this._dbAdapter = new SQLiteAdapter(db);
 
             const migrateAdapter = new dbScript.LocalDBAdapter(dbPath);

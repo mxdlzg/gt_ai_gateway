@@ -29,9 +29,11 @@ pub fn get_command(exe_dir: &Path) -> (Command, String) {
     {
         let sidecar_path = exe_dir.join("ai-gateway-backend");
         let resource_dir = exe_dir.join("../Resources/resource");
+        let native_binding_path = resource_dir.join("native").join("better_sqlite3.node");
         let mut c = Command::new(&sidecar_path);
         c.arg("--api-only");
         c.arg("--desktop-mode");
+        c.env("BETTER_SQLITE3_NATIVE_BINDING", native_binding_path);
         (c, resource_dir.join("migrate").to_string_lossy().into_owned())
     }
 }

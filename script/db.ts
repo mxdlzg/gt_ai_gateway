@@ -9,6 +9,11 @@ export const MIGRATION_DIR = process.env.MIGRATION_DIR || join(process.cwd(), "r
 const LOCAL_DB_PATH = process.env.DB_PATH || join(process.cwd(), "local.db");
 const TMP_DIR = join(process.cwd(), ".tmp");
 
+function getBetterSqliteOptions(): Database.Options {
+    const nativeBinding = process.env.BETTER_SQLITE3_NATIVE_BINDING?.trim();
+    return nativeBinding ? { nativeBinding } : {};
+}
+
 export interface Migration {
     id?: number;
     name: string;
@@ -49,7 +54,7 @@ class LocalDBAdapter implements DBAdapter {
     private db: Database.Database;
 
     constructor(dbPath: string) {
-        this.db = new Database(dbPath);
+        this.db = new Database(dbPath, getBetterSqliteOptions());
     }
 
     exec(sql: string): void {
