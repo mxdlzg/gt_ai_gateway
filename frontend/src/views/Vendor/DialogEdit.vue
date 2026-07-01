@@ -84,6 +84,26 @@
                     </a-button>
                 </template>
             </a-form-item>
+            <a-form-item label="Headers 配置（可选）">
+                <div v-for="(item, index) in headersForm" :key="index" class="header-item">
+                    <a-row :gutter="8" align="middle">
+                        <a-col :span="9">
+                            <a-input v-model:value="item.key" placeholder="Header 名称" />
+                        </a-col>
+                        <a-col :span="13">
+                            <a-input v-model:value="item.value" placeholder="Header 值" />
+                        </a-col>
+                        <a-col :span="2">
+                            <a-button type="text" danger @click="removeHeader(index)">
+                                <DeleteOutlined />
+                            </a-button>
+                        </a-col>
+                    </a-row>
+                </div>
+                <a-button type="dashed" block @click="addHeader">
+                    <PlusOutlined /> 添加 Header
+                </a-button>
+            </a-form-item>
         </a-form>
     </a-modal>
 </template>
@@ -93,7 +113,7 @@ import { ref, reactive, computed, watch } from 'vue';
 import type { FormInstance } from 'ant-design-vue/es';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons-vue';
 import { updateVendor } from '@/api/vendor';
-import type { UpdateVendorRequest, Vendor, VendorType, VendorUrls } from '@/types/vendor';
+import type { UpdateVendorRequest, Vendor, VendorHeaders, VendorType, VendorUrls } from '@/types/vendor';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
 import { useVendorPresets } from '@/composables/useVendorPresets';
 
@@ -125,6 +145,7 @@ const urlsMode = ref<'view' | 'edit'>('view');
 
 // 用户自定义条目（从 vendor.urls 初始化）
 const urlsForm = reactive<{ type: string; url: string }[]>([]);
+const headersForm = reactive<{ key: string; value: string }[]>([]);
 
 const currentTypePreset = computed(() => PRESET_URLS.value[formState.type] ?? null);
 
@@ -168,6 +189,11 @@ function open(vendor: Vendor) {
         if (url !== undefined) urlsForm.push({ type: key, url });
     });
 
+    headersForm.splice(0, headersForm.length);
+    Object.entries(vendor.headers || {}).forEach(([key, value]) => {
+        if (value !== undefined) headersForm.push({ key, value });
+    });
+
     void loadPresets();
     urlsMode.value = PRESET_URLS.value[vendor.type] ? 'view' : 'edit';
     visible.value = true;
@@ -185,6 +211,25 @@ function removeUrl(index: number) {
     urlsForm.splice(index, 1);
 }
 
+function addHeader() {
+    headersForm.push({ key: '', value: '' });
+}
+
+function removeHeader(index: number) {
+    headersForm.splice(index, 1);
+}
+
+function collectHeaders(): VendorHeaders {
+    const headers: VendorHeaders = {};
+    headersForm.forEach(item => {
+        const key = item.key.trim();
+        if (key && item.value) {
+            headers[key] = item.value;
+        }
+    });
+    return headers;
+}
+
 async function handleOk() {
     try {
         await formRef.value?.validate();
@@ -199,6 +244,7 @@ async function handleOk() {
             name: formState.name,
             token: formState.token,
             urls,
+            headers: collectHeaders(),
         };
 
         loading.value = true;
@@ -222,6 +268,10 @@ defineExpose({ open });
 
 <style scoped>
 .url-item {
+    margin-bottom: 12px;
+}
+
+.header-item {
     margin-bottom: 12px;
 }
 

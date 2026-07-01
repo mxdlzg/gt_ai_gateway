@@ -1,21 +1,16 @@
 import { Model } from "sutando";
 import { inspect, InspectOptions } from "util";
 
-class SgModel extends Model {
-    table = "model";
+class SgModelProviderRoute extends Model {
+    table = "model_provider_route";
 
     id!: number;
-
-    name!: string | null;
-    vendor_id!: number | null;
+    model_id!: number;
+    vendor_id!: number;
     vendor_model_id!: number | null;
-    enable!: boolean;
-    prices!: { input?: number, output?: number, cache_read?: number } | null;
-    routes?: unknown[];
-
-    casts = {
-        prices: 'json'
-    };
+    priority!: number;
+    weight!: number;
+    enabled!: boolean;
 
     created_at!: Date;
     updated_at!: Date;
@@ -25,4 +20,4 @@ class SgModel extends Model {
     }
 }
 
-export { SgModel };
+export default SgModelProviderRoute;

@@ -20,6 +20,7 @@ function formatVendor(vendor: SgVendor, modelCount = 0) {
         name: vendor.name,
         token: vendor.token,
         urls: vendor.getUrls(),
+        headers: vendor.getHeaders(),
         model_count: modelCount,
         created_at: vendor.created_at,
         updated_at: vendor.updated_at,
@@ -100,7 +101,7 @@ async function getVendorsByIds(c: Context) {
 
 async function createVendor(c: Context) {
     const body = await c.req.json();
-    const { type, name, token, urls } = body;
+    const { type, name, token, urls, headers } = body;
 
     // Validation - 不验证 urls，允许为空
     if (!type || !name || !token) {
@@ -112,6 +113,7 @@ async function createVendor(c: Context) {
         name,
         token,
         urls: urls ? JSON.stringify(urls) : "{}",
+        headers: headers ? JSON.stringify(headers) : "{}",
     });
 
     return c.json(formatVendor(instance));
@@ -127,13 +129,14 @@ async function updateVendor(c: Context) {
     }
 
     const body = await c.req.json();
-    const { type, name, token, urls } = body;
+    const { type, name, token, urls, headers } = body;
 
     const updatedVendor = await vendorService.updateVendor(vendorId, {
         type,
         name,
         token,
         urls,
+        headers,
     });
 
     if (!updatedVendor) {
@@ -159,7 +162,11 @@ async function deleteVendor(c: Context) {
     }
 
     // 检查是否有关联的模型
-    const relatedModelCount = Number(await SgModel.query().where("vendor_id", vendorId).count() || 0);
+    const knex = ormService.getKnex();
+    const legacyModelCount = Number(await SgModel.query().where("vendor_id", vendorId).count() || 0);
+    const routeCountRow = await knex("model_provider_route").where("vendor_id", vendorId).count({ count: "*" }).first();
+    const routeModelCount = Number(routeCountRow?.count ?? 0);
+    const relatedModelCount = legacyModelCount + routeModelCount;
     if (relatedModelCount > 0) {
         throw new customError.AppError("Cannot delete vendor with associated models");
     }
@@ -183,7 +190,23 @@ async function testVendor(c: Context) {
     }
 
     const bodyJson = await c.req.json().catch(() => ({}));
-    const { format = ApiFormat.OPENAI, model = "test-ping", auto_convert = false } = bodyJson;
+    const {
+        format = ApiFormat.OPENAI,
+        model = "test-ping",
+        auto_convert = false,
+        test_content,
+        system_prompt,
+        max_tokens,
+    } = bodyJson;
+    const testContent = typeof test_content === "string" && test_content.trim()
+        ? test_content.trim()
+        : "请用一句话回复：连接测试成功。";
+    const systemPrompt = typeof system_prompt === "string" && system_prompt.trim()
+        ? system_prompt.trim()
+        : null;
+    const outputTokenLimit = typeof max_tokens === "number" && max_tokens > 0
+        ? Math.floor(max_tokens)
+        : 64;
 
     let requestFormat: ApiFormat = format;
     let convertedFrom: string | undefined;
@@ -199,33 +222,36 @@ async function testVendor(c: Context) {
     }
 
     const url = vendor.getUrlByFormat(requestFormat);
-    const headers = new Headers();
+    const headers = senderService.buildUpstreamHeaders(null, vendor, requestFormat);
     let upstreamBody = "";
 
     if (requestFormat === ApiFormat.ANTHROPIC) {
-        headers.set("x-api-key", vendor.token);
-        headers.set("anthropic-version", "2023-06-01");
-        headers.set("Content-Type", "application/json");
         upstreamBody = JSON.stringify({
             model: model,
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 1,
+            ...(systemPrompt ? { system: systemPrompt } : {}),
+            messages: [{ role: "user", content: testContent }],
+            max_tokens: outputTokenLimit,
+            temperature: 0.7,
         });
     } else if (requestFormat === ApiFormat.RESPONSES) {
-        headers.set("Authorization", vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`);
-        headers.set("Content-Type", "application/json");
         upstreamBody = JSON.stringify({
             model: model,
-            input: "ping",
-            max_output_tokens: 16,
+            ...(systemPrompt ? { instructions: systemPrompt } : {}),
+            input: testContent,
+            max_output_tokens: outputTokenLimit,
+            temperature: 0.7,
         });
     } else {
-        headers.set("Authorization", vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`);
-        headers.set("Content-Type", "application/json");
+        const messages = [
+            ...(systemPrompt ? [{ role: "system", content: systemPrompt }] : []),
+            { role: "user", content: testContent },
+        ];
         upstreamBody = JSON.stringify({
             model: model,
-            messages: [{ role: "user", content: "ping" }],
-            max_tokens: 5,
+            messages,
+            max_tokens: outputTokenLimit,
+            temperature: 0.7,
+            stream: false,
         });
     }
 

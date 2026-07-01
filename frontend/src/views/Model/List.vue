@@ -57,13 +57,38 @@
             </template>
             <template #bodyCell="{ column, record }">
                 <template v-if="column.key === 'vendor_id'">
-                    {{ getVendorName(record.vendor_id) }}
+                    <div class="route-summary">
+                        <template v-if="getDisplayRoutes(record).length > 0">
+                            <div
+                                v-for="route in getDisplayRoutes(record)"
+                                :key="`${route.vendor_id}-${route.vendor_model_id ?? 'auto'}-${route.priority}`"
+                                class="route-summary-row"
+                            >
+                                <a-tag :color="route.enabled ? 'blue' : 'default'">
+                                    P{{ route.priority }} / W{{ route.weight }}
+                                </a-tag>
+                                <span>{{ getVendorName(route.vendor_id) }}</span>
+                            </div>
+                        </template>
+                        <span v-else style="color: #bbb;">未配置</span>
+                    </div>
                 </template>
                 <template v-if="column.key === 'vendor_model_id'">
-                    <span v-if="record.vendor_model_id" class="vendor-model-tag">
-                        {{ getVendorModelName(record.vendor_model_id) }}
-                    </span>
-                    <span v-else style="color: #bbb;">自动</span>
+                    <div class="route-summary">
+                        <template v-if="getDisplayRoutes(record).length > 0">
+                            <div
+                                v-for="route in getDisplayRoutes(record)"
+                                :key="`${route.vendor_id}-${route.vendor_model_id ?? 'auto'}-${route.priority}`"
+                                class="route-summary-row"
+                            >
+                                <span v-if="route.vendor_model_id" class="vendor-model-tag">
+                                    {{ getVendorModelName(route.vendor_model_id) }}
+                                </span>
+                                <span v-else style="color: #bbb;">自动</span>
+                            </div>
+                        </template>
+                        <span v-else style="color: #bbb;">自动</span>
+                    </div>
                 </template>
                 <template v-if="column.key === 'enable'">
                     <a-tag :color="Boolean(record.enable) ? 'green' : 'red'">
@@ -116,7 +141,7 @@ import { normalizeListResponse } from '@/utils/listResponse';
 import DialogCreate from './DialogCreate.vue';
 import DialogEdit from './DialogEdit.vue';
 import DialogTest from '@/views/Vendor/DialogTest.vue';
-import type { Model, ModelQuery } from '@/types/model';
+import type { Model, ModelProviderRoute, ModelQuery } from '@/types/model';
 import type { Vendor as VendorType, VendorModel } from '@/types/vendor';
 
 const router = useRouter();
@@ -144,8 +169,8 @@ const vendorModelsMap = ref<Map<number, VendorModel>>(new Map());
 const columns: TableColumnsType<Model> = [
     { title: 'ID', key: 'id', dataIndex: 'id' },
     { title: '模型名称', key: 'name', dataIndex: 'name' },
-    { title: '供应商', key: 'vendor_id', dataIndex: 'vendor_id' },
-    { title: '供应商模型', key: 'vendor_model_id', dataIndex: 'vendor_model_id' },
+    { title: '供应商路由', key: 'vendor_id', dataIndex: 'vendor_id' },
+    { title: '上游模型', key: 'vendor_model_id', dataIndex: 'vendor_model_id' },
     { title: '状态', key: 'enable', dataIndex: 'enable' },
     { title: '价格', key: 'price' },
     { title: '创建时间', key: 'created_at', dataIndex: 'created_at' },
@@ -188,10 +213,11 @@ function handleView(record: Model) {
 }
 
 function handleTest(record: Model) {
-    const vendor = vendors.value.find(v => v.id === record.vendor_id);
+    const route = getPrimaryRoute(record);
+    const vendor = vendors.value.find(v => v.id === route?.vendor_id);
     if (!vendor) return;
-    const vendorModel = record.vendor_model_id
-        ? (vendorModelsMap.value.get(record.vendor_model_id) ?? null)
+    const vendorModel = route?.vendor_model_id
+        ? (vendorModelsMap.value.get(route.vendor_model_id) ?? null)
         : null;
     const vendorModelName = vendorModel?.model_id ?? null;
     const upstreamModel = vendorModelName ?? record.name;
@@ -201,6 +227,30 @@ function handleTest(record: Model) {
         allowedFormats: vendorModel?.allowed_formats ?? null,
         showAutoConvert: true,
     });
+}
+
+function getDisplayRoutes(record: Model): ModelProviderRoute[] {
+    if (record.routes && record.routes.length > 0) {
+        return [...record.routes].sort((a, b) => a.priority - b.priority);
+    }
+
+    return [{
+        id: 0,
+        model_id: record.id,
+        vendor_id: record.vendor_id,
+        vendor_model_id: record.vendor_model_id,
+        priority: 100,
+        weight: 1,
+        enabled: true,
+        created_at: record.created_at,
+        updated_at: record.updated_at,
+    }];
+}
+
+function getPrimaryRoute(record: Model): ModelProviderRoute | undefined {
+    const enabledRoutes = getDisplayRoutes(record).filter(route => route.enabled);
+    const source = enabledRoutes.length > 0 ? enabledRoutes : getDisplayRoutes(record);
+    return [...source].sort((a, b) => a.priority - b.priority)[0];
 }
 
 function getVendorName(vendorId: number): string {
@@ -213,7 +263,7 @@ function getVendorModelName(id: number): string {
 }
 
 async function loadVendorModelsForPage(models: Model[]) {
-    const ids = [...new Set(models.map(m => m.vendor_model_id).filter((id): id is number => id != null))];
+    const ids = [...new Set(models.flatMap(m => getDisplayRoutes(m).map(route => route.vendor_model_id)).filter((id): id is number => id != null))];
     if (ids.length === 0) return;
     try {
         const vms = await fetchVendorModelsByIds(ids);
@@ -270,5 +320,18 @@ watch(data, (models) => {
     font-size: 12px;
     color: #555;
     font-family: monospace;
+}
+
+.route-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.route-summary-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 24px;
 }
 </style>

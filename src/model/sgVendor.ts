@@ -13,6 +13,7 @@ class SgVendor extends Model {
     name!: string;
     token!: string;
     urls!: string;  // JSON string
+    headers!: string;  // JSON string
 
     created_at!: Date;
     updated_at!: Date;
@@ -23,6 +24,27 @@ class SgVendor extends Model {
     getUrls(): Record<string, string> {
         try {
             return this.urls ? JSON.parse(this.urls) : {};
+        } catch {
+            return {};
+        }
+    }
+
+
+    /**
+     * Parse custom upstream request headers JSON string to object.
+     */
+    getHeaders(): Record<string, string> {
+        try {
+            const parsed = this.headers ? JSON.parse(this.headers) : {};
+            if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+                return {};
+            }
+
+            return Object.fromEntries(
+                Object.entries(parsed)
+                    .filter(([key, value]) => key.trim() && value !== null && value !== undefined)
+                    .map(([key, value]) => [key.trim(), String(value)]),
+            );
         } catch {
             return {};
         }

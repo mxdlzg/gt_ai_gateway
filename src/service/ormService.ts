@@ -175,7 +175,8 @@ class ORMService {
         "record",
         "user",
         "vendor",
-        "vendor_model"
+        "vendor_model",
+        "model_provider_route"
     ];
 
     async verifySchema(): Promise<void> {

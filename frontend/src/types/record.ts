@@ -7,6 +7,7 @@ export interface Record extends BaseEntity {
     user_id: number | null;
     model_id: number | null;
     request_data: string | null;
+    request_headers: string | null;
     response_data: string | null;
     status: RequestStatus | null;
     failed_code: FailedCode;

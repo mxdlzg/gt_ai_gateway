@@ -6,11 +6,16 @@ export interface VendorUrls {
     [key: string]: string;
 }
 
+export interface VendorHeaders {
+    [key: string]: string;
+}
+
 export interface Vendor extends BaseEntity {
     type: VendorType;
     name: string;
     token: string;
     urls: VendorUrls;
+    headers: VendorHeaders;
     model_count: number;
 }
 
@@ -19,6 +24,7 @@ export interface CreateVendorRequest {
     name: string;
     token: string;
     urls?: VendorUrls;
+    headers?: VendorHeaders;
 }
 
 export interface UpdateVendorRequest {
@@ -26,6 +32,7 @@ export interface UpdateVendorRequest {
     name?: string;
     token?: string;
     urls?: VendorUrls;
+    headers?: VendorHeaders;
 }
 
 export interface VendorQuery extends TableQuery {

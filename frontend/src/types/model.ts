@@ -5,6 +5,7 @@ export interface Model extends BaseEntity {
     vendor_id: number;
     vendor_model_id: number | null;
     enable: boolean;
+    routes?: ModelProviderRoute[];
     prices?: {
         input?: number;
         output?: number;
@@ -12,9 +13,26 @@ export interface Model extends BaseEntity {
     } | null;
 }
 
+export interface ModelProviderRoute extends BaseEntity {
+    model_id: number;
+    vendor_id: number;
+    vendor_model_id: number | null;
+    priority: number;
+    weight: number;
+    enabled: boolean;
+}
+
+export interface ModelProviderRouteInput {
+    vendor_id: number;
+    vendor_model_id?: number | null;
+    priority?: number;
+    weight?: number;
+    enabled?: boolean;
+}
+
 export interface CreateModelRequest {
     name: string;
-    vendor_id: number;
+    vendor_id?: number;
     enable?: boolean;
     prices?: {
         input?: number;
@@ -22,6 +40,7 @@ export interface CreateModelRequest {
         cache_read?: number;
     } | null;
     vendor_model_id?: number | null;
+    routes?: ModelProviderRouteInput[];
 }
 
 export interface UpdateModelRequest {
@@ -34,6 +53,7 @@ export interface UpdateModelRequest {
         cache_read?: number;
     } | null;
     vendor_model_id?: number | null;
+    routes?: ModelProviderRouteInput[];
 }
 
 export interface ModelQuery extends TableQuery {

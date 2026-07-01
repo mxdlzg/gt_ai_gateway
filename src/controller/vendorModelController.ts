@@ -3,6 +3,9 @@ import { SgVendor } from "../model/sgVendor";
 import { SgVendorModel } from "../model/sgVendorModel";
 import customError from "../util/customError";
 import { ApiFormat } from "../constants";
+import senderService from "../service/senderService";
+
+type FetchModelSource = "auto" | "openai" | "anthropic";
 
 const NON_LLM_PATTERNS = [
     /embedding/i,
@@ -42,6 +45,112 @@ function serializeVendorModel(m: SgVendorModel) {
 }
 
 
+function resolveFetchModelSource(vendor: SgVendor, requestedSource: string | undefined): FetchModelSource {
+    const source = requestedSource === "openai" || requestedSource === "anthropic" ? requestedSource : "auto";
+    if (source !== "auto") {
+        return source;
+    }
+
+    const supportedFormats = vendor.getSupportedFormats();
+    if (supportedFormats.includes(ApiFormat.OPENAI)) {
+        return "openai";
+    }
+    if (supportedFormats.includes(ApiFormat.ANTHROPIC)) {
+        return "anthropic";
+    }
+
+    throw new customError.AppError("Vendor does not have a model list compatible URL", 400);
+}
+
+
+function getModelListBaseUrl(vendor: SgVendor, source: FetchModelSource): string {
+    const urls = vendor.getMergedUrls();
+    const preferredKey = source === "anthropic" ? ApiFormat.ANTHROPIC : ApiFormat.OPENAI;
+    const preferredUrl = urls[preferredKey];
+    if (preferredUrl) {
+        return preferredUrl;
+    }
+
+    return urls[ApiFormat.OPENAI] ||
+        urls[ApiFormat.ANTHROPIC] ||
+        urls[ApiFormat.RESPONSES] ||
+        Object.values(urls).find(Boolean) ||
+        "";
+}
+
+
+function stripKnownModelEndpoint(url: string): string {
+    return url
+        .replace(/\/+$/, "")
+        .replace(/\/chat\/completions$/i, "")
+        .replace(/\/(v\d+(?:beta)?)\/messages$/i, "/$1")
+        .replace(/\/messages$/i, "")
+        .replace(/\/responses$/i, "")
+        .replace(/\/(v\d+(?:beta)?)\/models$/i, "/$1")
+        .replace(/\/models$/i, "")
+        .replace(/\/+$/, "");
+}
+
+
+function appendModelsPath(baseUrl: string): string {
+    const parsed = new URL(baseUrl);
+    const path = parsed.pathname.replace(/\/+$/, "");
+    const hasVersionSegment = /(^|\/)v\d+(?:beta)?(\/|$)/i.test(path);
+
+    parsed.pathname = `${path || ""}${hasVersionSegment ? "/models" : "/v1/models"}`;
+    parsed.search = "";
+    parsed.hash = "";
+
+    return parsed.toString();
+}
+
+
+function buildModelsUrl(vendor: SgVendor, source: FetchModelSource): string {
+    const baseUrl = getModelListBaseUrl(vendor, source);
+    if (!baseUrl) {
+        throw new customError.AppError("Vendor does not have a model list compatible URL", 400);
+    }
+
+    return appendModelsPath(stripKnownModelEndpoint(baseUrl));
+}
+
+
+function buildModelFetchHeaders(vendor: SgVendor, source: FetchModelSource): Headers {
+    const requestFormat = source === "anthropic" ? ApiFormat.ANTHROPIC : ApiFormat.OPENAI;
+    const headers = senderService.buildUpstreamHeaders(null, vendor, requestFormat);
+    const bearerToken = vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`;
+
+    // Model list endpoints are not as consistently protocol-shaped as chat endpoints.
+    // Send both common auth headers and then let provider custom headers override them.
+    headers.set("Authorization", bearerToken);
+    headers.set("x-api-key", vendor.token);
+    for (const [key, value] of Object.entries(vendor.getHeaders())) {
+        headers.set(key, value);
+    }
+
+    return headers;
+}
+
+
+function extractModelIds(data: any): string[] {
+    if (Array.isArray(data?.data)) {
+        return data.data
+            .map((m: any) => typeof m === "string" ? m : m?.id)
+            .filter(Boolean)
+            .filter(isLlmModel);
+    }
+
+    if (Array.isArray(data?.models)) {
+        return data.models
+            .map((m: any) => typeof m === "string" ? m : m?.id)
+            .filter(Boolean)
+            .filter(isLlmModel);
+    }
+
+    return [];
+}
+
+
 async function listVendorModels(c: Context) {
     const vendorId = parseInt(c.req.param("id"), 10);
     if (isNaN(vendorId)) {
@@ -68,21 +177,14 @@ async function fetchVendorModels(c: Context) {
         throw new customError.NotFoundError("Vendor not found");
     }
 
-    // 取 openai URL，去掉 /chat/completions 后缀，拼 /models
-    const openaiUrl = vendor.getUrlByFormat(ApiFormat.OPENAI);
-    const baseUrl = openaiUrl.replace(/\/chat\/completions$/, "");
-    const modelsUrl = `${baseUrl}/models`;
-
-    const token = vendor.token;
-    const authHeader = token.startsWith("Bearer ") ? token : `Bearer ${token}`;
+    const source = resolveFetchModelSource(vendor, c.req.query("source"));
+    const modelsUrl = buildModelsUrl(vendor, source);
+    const headers = buildModelFetchHeaders(vendor, source);
 
     try {
         const response = await fetch(modelsUrl, {
             method: "GET",
-            headers: {
-                Authorization: authHeader,
-                "Content-Type": "application/json",
-            },
+            headers,
         });
 
         if (!response.ok) {
@@ -95,12 +197,10 @@ async function fetchVendorModels(c: Context) {
 
         const data: any = await response.json();
 
-        // OpenAI /v1/models 返回 { object: "list", data: [{ id, ... }, ...] }
-        const models: string[] = Array.isArray(data?.data)
-            ? data.data.map((m: any) => m.id).filter(Boolean).filter(isLlmModel)
-            : [];
+        // OpenAI /v1/models and Anthropic /v1/models both return { data: [{ id, ... }, ...] }.
+        const models = extractModelIds(data);
 
-        return c.json({ models });
+        return c.json({ models, source });
     } catch (err: any) {
         if (err.statusCode) throw err;
         throw new customError.AppError(`Failed to fetch models: ${err.message}`, 502);
@@ -159,7 +259,7 @@ async function addVendorModel(c: Context) {
     }
 
     const body = await c.req.json();
-    const { model_id } = body;
+    const { model_id, allowed_formats } = body;
 
     if (!model_id || typeof model_id !== "string" || !model_id.trim()) {
         throw new customError.AppError("model_id is required");
@@ -176,9 +276,17 @@ async function addVendorModel(c: Context) {
         throw new customError.AppError("Model already exists", 409);
     }
 
+    let allowedFormatsJson: string | null = null;
+    if (Array.isArray(allowed_formats) && allowed_formats.length > 0) {
+        const validFormats = Object.values(ApiFormat);
+        const filtered = allowed_formats.filter((f: unknown) => validFormats.includes(f as ApiFormat));
+        allowedFormatsJson = filtered.length > 0 ? JSON.stringify(filtered) : null;
+    }
+
     const record = await SgVendorModel.query().create({
         vendor_id: vendorId,
         model_id: trimmed,
+        allowed_formats: allowedFormatsJson,
     });
 
     return c.json(serializeVendorModel(record));

@@ -5,6 +5,7 @@ import { streamSSE, SSEStreamingApi } from "hono/streaming";
 import { SgUser } from "../model/sgUser";
 import { SgVendor } from "../model/sgVendor";
 import { SgVendorModel } from "../model/sgVendorModel";
+import SgModelProviderRoute from "../model/sgModelProviderRoute";
 import recordService from "./recordService";
 import ormService from "./ormService";
 import { SgRecordStatus, FailedCode, ApiFormat } from "../constants";
@@ -46,6 +47,24 @@ function calculateCost(
 
 type Dict = Record<string, unknown>;
 
+const EXCLUDED_FORWARD_HEADERS = [
+    "authorization",
+    "x-api-key",
+    "anthropic-version",
+    "content-length",
+    "host",
+    "origin",
+    "referer",
+    "connection",
+    "keep-alive",
+    "proxy-authenticate",
+    "proxy-authorization",
+    "te",
+    "trailer",
+    "transfer-encoding",
+    "upgrade",
+];
+
 
 /**
  * 解析上游支持的格式
@@ -77,6 +96,169 @@ function resolveUpstreamFormat(
 
     // 如果没有找到支持的格式，返回客户端请求的格式
     return clientFormat;
+}
+
+
+function shouldForwardHeader(key: string): boolean {
+    const lowerKey = key.toLowerCase();
+    return !lowerKey.startsWith("cf-") &&
+        !lowerKey.startsWith("sec-") &&
+        !EXCLUDED_FORWARD_HEADERS.includes(lowerKey);
+}
+
+
+function applyVendorHeaders(headers: Headers, vendor: SgVendor): void {
+    const customHeaders = vendor.getHeaders();
+    for (const [key, value] of Object.entries(customHeaders)) {
+        headers.set(key, value);
+    }
+}
+
+
+function buildUpstreamHeaders(
+    requestHeaders: Headers | null,
+    vendor: SgVendor,
+    upstreamFormat: ApiFormat,
+): Headers {
+    const finalHeaders = new Headers();
+
+    if (requestHeaders) {
+        for (const [key, value] of requestHeaders.entries()) {
+            if (shouldForwardHeader(key)) {
+                finalHeaders.set(key, value);
+            }
+        }
+    }
+
+    if (upstreamFormat === ApiFormat.ANTHROPIC) {
+        finalHeaders.set("x-api-key", vendor.token);
+        finalHeaders.set("anthropic-version", "2023-06-01");
+    } else {
+        finalHeaders.set("Authorization", vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`);
+    }
+
+    finalHeaders.set("Content-Type", "application/json");
+    applyVendorHeaders(finalHeaders, vendor);
+
+    return finalHeaders;
+}
+
+
+function serializeHeaders(headers: Headers): Record<string, string> {
+    return Object.fromEntries(headers.entries());
+}
+
+
+interface SelectedProviderRoute {
+    vendor: SgVendor;
+    vendorModel: SgVendorModel | null;
+    vendorModelName: string | null;
+    supportedFormats: ApiFormat[];
+}
+
+
+function chooseWeightedRoute<T extends { weight: number }>(routes: T[]): T {
+    const totalWeight = routes.reduce((sum, route) => sum + Math.max(1, route.weight), 0);
+    let cursor = Math.random() * totalWeight;
+
+    for (const route of routes) {
+        cursor -= Math.max(1, route.weight);
+        if (cursor <= 0) return route;
+    }
+
+    return routes[routes.length - 1];
+}
+
+
+async function buildLegacyRoute(modelConfig: SgModel): Promise<SgModelProviderRoute | null> {
+    if (!modelConfig.vendor_id) return null;
+
+    const route = new SgModelProviderRoute();
+    route.model_id = modelConfig.id;
+    route.vendor_id = modelConfig.vendor_id;
+    route.vendor_model_id = modelConfig.vendor_model_id ?? null;
+    route.priority = 100;
+    route.weight = 1;
+    route.enabled = true;
+    return route;
+}
+
+
+async function getCandidateRoutes(modelConfig: SgModel): Promise<SgModelProviderRoute[]> {
+    const routes = await SgModelProviderRoute.query()
+        .where("model_id", modelConfig.id)
+        .where("enabled", 1)
+        .orderBy("priority", "asc")
+        .orderBy("id", "asc")
+        .get();
+
+    const routeList = routes.toArray() as SgModelProviderRoute[];
+    if (routeList.length > 0) return routeList;
+
+    const legacyRoute = await buildLegacyRoute(modelConfig);
+    return legacyRoute ? [legacyRoute] : [];
+}
+
+
+async function resolveProviderRoute(
+    modelConfig: SgModel,
+    clientFormat: ApiFormat,
+): Promise<SelectedProviderRoute & { upstreamFormat: ApiFormat; url: string }> {
+    const routes = await getCandidateRoutes(modelConfig);
+    const candidates: Array<SelectedProviderRoute & { priority: number; weight: number; upstreamFormat: ApiFormat; url: string }> = [];
+
+    for (const route of routes) {
+        const vendor = await SgVendor.query().find(route.vendor_id);
+        if (!vendor) continue;
+
+        let vendorModel: SgVendorModel | null = null;
+        let vendorModelName: string | null = modelConfig.name;
+        let supportedFormats: ApiFormat[] | null = null;
+
+        if (route.vendor_model_id) {
+            vendorModel = await SgVendorModel.query()
+                .where("id", route.vendor_model_id)
+                .where("vendor_id", route.vendor_id)
+                .first();
+            if (vendorModel) {
+                vendorModelName = vendorModel.model_id;
+                supportedFormats = vendorModel.getSupportedFormats();
+            }
+        }
+
+        const finalSupportedFormats = supportedFormats ?? vendor.getSupportedFormats();
+        const upstreamFormat = resolveUpstreamFormat(clientFormat, finalSupportedFormats);
+
+        try {
+            const url = vendor.getUrlByFormat(upstreamFormat);
+            candidates.push({
+                vendor,
+                vendorModel,
+                vendorModelName,
+                supportedFormats: finalSupportedFormats,
+                priority: Number(route.priority ?? 100),
+                weight: Math.max(1, Number(route.weight ?? 1)),
+                upstreamFormat,
+                url,
+            });
+        } catch (e) {
+            console.log("[senderService] Skip route without compatible URL:", {
+                modelId: modelConfig.id,
+                vendorId: route.vendor_id,
+                vendorModelId: route.vendor_model_id,
+                upstreamFormat,
+                error: e instanceof Error ? e.message : String(e),
+            });
+        }
+    }
+
+    if (candidates.length === 0) {
+        throw new customError.AppError("No available provider route for model", 400);
+    }
+
+    const minPriority = Math.min(...candidates.map(route => route.priority));
+    const topRoutes = candidates.filter(route => route.priority === minPriority);
+    return chooseWeightedRoute(topRoutes);
 }
 
 
@@ -717,37 +899,17 @@ async function sendRequest(
     c: Context,
     user: SgUser,
     modelConfig: SgModel,
-    vendor: SgVendor,
     format: ApiFormat,
     body: string,
 ): Promise<Response> {
-    let vendorModelName: string | null = null;
-    let supportedFormats: ApiFormat[] | null = null;
-
-    if (modelConfig.vendor_model_id) {
-        const vendorModel = await SgVendorModel.query().find(modelConfig.vendor_model_id);
-        if (vendorModel) {
-            vendorModelName = vendorModel.model_id;
-            supportedFormats = vendorModel.getSupportedFormats();
-        }
-    } else {
-        // 自动模式：由于未指定上游映射，实际上游接收到的模型名称就是用户请求的模型名（或网关模型名）
-        vendorModelName = modelConfig.name;
-    }
-
-    // 如果 vendorModel 未配置限制格式，使用 vendor 支持的格式
-    if (!supportedFormats) {
-        supportedFormats = vendor.getSupportedFormats();
-    }
-
-    // 根据客户端请求的格式和 vendor/vendorModel 支持的格式，计算最终应该用什么格式
-    const upstreamFormat = resolveUpstreamFormat(format, supportedFormats);
-
+    const selectedRoute = await resolveProviderRoute(modelConfig, format);
+    const vendor = selectedRoute.vendor;
+    const vendorModelName = selectedRoute.vendorModelName;
+    const upstreamFormat = selectedRoute.upstreamFormat;
     const needsConversion = format !== upstreamFormat;
+    const url = selectedRoute.url;
 
-    const url = vendor.getUrlByFormat(upstreamFormat);
-
-    console.log("sendRequest: modelConfig={}, format={}, upstreamFormat={}", modelConfig, format, upstreamFormat);
+    console.log("sendRequest: modelConfig={}, vendor={}, format={}, upstreamFormat={}", modelConfig, vendor.id, format, upstreamFormat);
 
     // Check user balance (only for non-root users)
     if (user.type !== "root") {
@@ -763,69 +925,28 @@ async function sendRequest(
         body,
         format,
         upstreamFormat,
-        modelConfig.vendor_id,
+        vendor.id,
         vendorModelName
     );
-    await recordService.update(record.id, {
-        status: SgRecordStatus.PROCESSING,
-        start_at: new Date(),
-    });
-
     // 2. 构建上游请求 headers，过滤掉 Cloudflare 注入的 cf- 前缀 header
     // 并且必须排除客户端自带的鉴权 header，避免泄露或导致合并错误
     // 同时排除浏览器相关的元数据 header，避免上游校验失败
-    const finalHeaders = new Headers();
-    const EXCLUDED_HEADERS = [
-        "authorization",
-        "x-api-key",
-        "anthropic-version",
-        "content-length",
-        "host",
-        "origin",
-        "referer",
-        "connection",
-        "keep-alive",
-        "proxy-authenticate",
-        "proxy-authorization",
-        "te",
-        "trailer",
-        "transfer-encoding",
-        "upgrade",
-    ];
+    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, vendor, upstreamFormat);
+    await recordService.update(record.id, {
+        status: SgRecordStatus.PROCESSING,
+        start_at: new Date(),
+        request_headers: JSON.stringify(serializeHeaders(finalHeaders)),
+    });
 
-    for (const [key, value] of c.req.raw.headers.entries()) {
-        const lowerKey = key.toLowerCase();
-        if (
-            !lowerKey.startsWith("cf-") &&
-            !lowerKey.startsWith("sec-") && // 排除浏览器 Sec-Headers
-            !EXCLUDED_HEADERS.includes(lowerKey)
-        ) {
-            finalHeaders.set(key, value);
-        }
-    }
-
-    if (upstreamFormat === ApiFormat.ANTHROPIC) {
-        finalHeaders.set("x-api-key", vendor.token);
-        finalHeaders.set("anthropic-version", "2023-06-01");
-    } else {
-        finalHeaders.set("Authorization", vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`);
-    }
-
-    // 强制设置 content-type
-    finalHeaders.set("Content-Type", "application/json");
-
-    // 3. 替换上游模型名：若 model 配置了 vendor_model_id，用对应的 vendor_model.model_id 替换请求体中的 model 字段
+    // 3. 替换上游模型名：若路由配置了 vendor_model_id，用对应的 vendor_model.model_id 替换请求体中的 model 字段
     let upstreamBody = body;
-    if (modelConfig.vendor_model_id) {
-        const vendorModel = await SgVendorModel.query().find(modelConfig.vendor_model_id);
-        if (vendorModel) {
-            try {
-                const bodyJson = JSON.parse(upstreamBody);
-                bodyJson.model = vendorModel.model_id;
-                upstreamBody = JSON.stringify(bodyJson);
-            } catch (e) {
-                console.log("[senderService] Failed to substitute model name:", e);
-            }
+    if (selectedRoute.vendorModel) {
+        try {
+            const bodyJson = JSON.parse(upstreamBody);
+            bodyJson.model = selectedRoute.vendorModel.model_id;
+            upstreamBody = JSON.stringify(bodyJson);
+        } catch (e) {
+            console.log("[senderService] Failed to substitute model name:", e);
         }
     }
 
@@ -911,8 +1032,10 @@ async function sendRequest(
 
 export default {
     buildStreamUsageAccounting,
+    buildUpstreamHeaders,
     isResponsesOutputStartedEvent,
     normalizeUsage,
     resolveUpstreamFormat,
+    serializeHeaders,
     sendRequest,
 };

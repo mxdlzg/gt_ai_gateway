@@ -107,6 +107,23 @@
                                     下载
                                 </a-button>
                             </a-space>
+                            <a-space v-else-if="activeRequestTab === 'request_headers'">
+                                <a-button type="link" size="small" @click="isRequestHeadersExpanded = !isRequestHeadersExpanded">
+                                    {{ isRequestHeadersExpanded ? '收起' : '展开' }}
+                                </a-button>
+                                <a-button type="link" size="small" @click="requestHeadersJsonRef?.handleCopy()">
+                                    复制
+                                </a-button>
+                                <a-button
+                                    type="link"
+                                    size="small"
+                                    :disabled="!recordStore.currentRecord?.request_headers"
+                                    @click="downloadJson(recordStore.currentRecord?.request_headers, 'request-headers')"
+                                >
+                                    <template #icon><DownloadOutlined /></template>
+                                    下载
+                                </a-button>
+                            </a-space>
                             <a-space v-else-if="activeRequestTab === 'response_json'">
                                 <a-button type="link" size="small" @click="isResponseExpanded = !isResponseExpanded">
                                     {{ isResponseExpanded ? '收起' : '展开' }}
@@ -141,6 +158,12 @@
                         <a-tab-pane key="request_json" tab="请求数据 (JSON)">
                             <div class="json-pane-content">
                                 <JsonViewer ref="requestJsonRef" :data="recordStore.currentRecord.request_data" :expanded="isRequestExpanded" />
+                            </div>
+                        </a-tab-pane>
+
+                        <a-tab-pane v-if="recordStore.currentRecord.request_headers" key="request_headers" tab="请求 Headers">
+                            <div class="json-pane-content">
+                                <JsonViewer ref="requestHeadersJsonRef" :data="recordStore.currentRecord.request_headers" :expanded="isRequestHeadersExpanded" />
                             </div>
                         </a-tab-pane>
 
@@ -185,9 +208,11 @@ const viewerIframe = ref<HTMLIFrameElement | null>(null);
 const activeRequestTab = ref<string>('request_json');
 
 const requestJsonRef = ref<any>(null);
+const requestHeadersJsonRef = ref<any>(null);
 const responseJsonRef = ref<any>(null);
 
 const isRequestExpanded = ref(true);
+const isRequestHeadersExpanded = ref(true);
 const isResponseExpanded = ref(true);
 
 const conversationData = computed(() => {
@@ -364,7 +389,7 @@ function getErrorMessage(responseData: string | null): string {
 }
 
 
-async function downloadJson(data: string | null, type: 'request' | 'response') {
+async function downloadJson(data: string | null, type: 'request' | 'request-headers' | 'response') {
     if (!data) {
         message.warning('没有数据可下载');
         return;

@@ -77,6 +77,23 @@
                         </div>
                     </div>
 
+                    <a-form-item label="测试内容">
+                        <a-textarea
+                            v-model:value="testContent"
+                            :rows="3"
+                            placeholder="请输入要发送给模型的测试内容"
+                        />
+                    </a-form-item>
+
+                    <a-form-item label="最大输出 Token">
+                        <a-input-number
+                            v-model:value="maxTokens"
+                            :min="1"
+                            :max="4096"
+                            style="width: 160px"
+                        />
+                    </a-form-item>
+
                     <a-button
                         type="primary"
                         :loading="loading"
@@ -169,6 +186,9 @@ const currentVendor = ref<Vendor | null>(null);
 const modelInfo = ref<ModelInfo | null>(null);
 const useAutoConvert = ref(false);
 const activeTab = ref('response');
+const DEFAULT_TEST_CONTENT = '请用一句话回复：连接测试成功。';
+const testContent = ref(DEFAULT_TEST_CONTENT);
+const maxTokens = ref(64);
 
 const mergedUrls = computed(() => {
     if (!currentVendor.value) return {};
@@ -316,6 +336,8 @@ function open(vendor: Vendor, defaultModel?: string, info?: ModelInfo) {
     searchValue.value = '';
     useAutoConvert.value = false;
     activeTab.value = 'response';
+    testContent.value = DEFAULT_TEST_CONTENT;
+    maxTokens.value = 64;
 
     const af = info?.allowedFormats;
     if (af?.length) {
@@ -363,7 +385,14 @@ async function handleTest() {
     loading.value = true;
     result.value = null;
     try {
-        const res = await testVendor(currentVendor.value.id, format.value, testModel.value, useAutoConvert.value);
+        const res = await testVendor(
+            currentVendor.value.id,
+            format.value,
+            testModel.value,
+            useAutoConvert.value,
+            testContent.value,
+            maxTokens.value,
+        );
         result.value = res;
         if (res.success) {
             notifySuccess('测试完成，连接正常');

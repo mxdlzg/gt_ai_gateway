@@ -29,6 +29,10 @@ describe('Vendor Test API', () => {
         expect(response.body.success).toBe(true);
         expect(response.body).toHaveProperty('duration');
         expect(response.body).toHaveProperty('status', 200);
+        expect(response.body.request_body.messages[0].role).toBe('user');
+        expect(response.body.request_body.messages[0].content).toContain('连接测试成功');
+        expect(response.body.request_body.max_tokens).toBe(64);
+        expect(response.body.request_body.stream).toBe(false);
     });
 
     it('should test vendor connectivity with custom model', async () => {
@@ -50,6 +54,29 @@ describe('Vendor Test API', () => {
         expect(response.body.success).toBe(true);
     });
 
+    it('should test vendor connectivity with custom test content', async () => {
+        const vendor = await requestHelper.post('/vendor/create.json', {
+            type: 'other',
+            name: 'Custom Content Vendor',
+            token: 'test-token',
+            urls: {
+                openai: 'http://localhost:9999/v1/chat/completions'
+            }
+        }, rootToken);
+
+        const response = await requestHelper.post(`/vendor/${vendor.body.id}/test.json`, {
+            format: 'openai',
+            model: 'gpt-4',
+            test_content: '请回答 2+2 的结果',
+            max_tokens: 128
+        }, rootToken);
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.request_body.messages[0].content).toBe('请回答 2+2 的结果');
+        expect(response.body.request_body.max_tokens).toBe(128);
+    });
+
     it('should test vendor connectivity (Anthropic format)', async () => {
         const vendor = await requestHelper.post('/vendor/create.json', {
             type: 'other',
@@ -68,6 +95,8 @@ describe('Vendor Test API', () => {
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
         expect(response.body).toHaveProperty('status', 200);
+        expect(response.body.request_body.messages[0].content).toContain('连接测试成功');
+        expect(response.body.request_body.max_tokens).toBe(64);
     });
 
     it('should return failure for invalid URL', async () => {

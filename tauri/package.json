@@ -3,9 +3,9 @@
     "private": true,
     "version": "1.7.3",
     "scripts": {
-        "dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
-        "build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
-        "tauri": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri"
+        "dev": "pnpm exec tauri dev",
+        "build": "pnpm exec tauri build",
+        "tauri": "pnpm exec tauri"
     },
     "devDependencies": {
         "@tauri-apps/cli": "^2"

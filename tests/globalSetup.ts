@@ -181,9 +181,11 @@ function startTestServer(): Promise<void> {
             console.log("Database path:", config.DB_CONFIG.path);
         }
 
-        testServerProcess = spawn("npx", command, {
+        const packageManager = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
+        testServerProcess = spawn(packageManager, ["exec", ...command], {
             env,
             stdio: ["ignore", "pipe", "pipe"],
+            shell: process.platform === "win32",
         });
 
         let serverStarted = false;

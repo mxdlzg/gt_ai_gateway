@@ -22,6 +22,16 @@
                         <a-tag v-if="item.isCustom" color="blue" style="margin-left: 6px; font-size: 11px;">自定义</a-tag>
                     </div>
                 </a-descriptions-item>
+                <a-descriptions-item label="Headers">
+                    <template v-if="getHeaderItems(vendor).length > 0">
+                        <div v-for="item in getHeaderItems(vendor)" :key="item.key" class="header-item">
+                            <strong>{{ item.key }}:</strong>
+                            <TokenDisplay v-if="isSensitiveHeader(item.key)" :token="item.value" />
+                            <span v-else>{{ item.value }}</span>
+                        </div>
+                    </template>
+                    <span v-else>-</span>
+                </a-descriptions-item>
                 <a-descriptions-item label="创建时间">
                     {{ formatDate(vendor.created_at) }}
                 </a-descriptions-item>
@@ -77,6 +87,17 @@ function getMergedUrls(v: Vendor): { key: string; url: string; isCustom: boolean
         url: custom[key] ?? preset[key] ?? '',
         isCustom: !!custom[key],
     }));
+}
+
+function getHeaderItems(v: Vendor): { key: string; value: string }[] {
+    return Object.entries(v.headers || {}).map(([key, value]) => ({ key, value }));
+}
+
+function isSensitiveHeader(key: string): boolean {
+    const normalizedKey = key.toLowerCase();
+    return normalizedKey.includes('authorization') ||
+        normalizedKey.includes('api-key') ||
+        normalizedKey.includes('token');
 }
 
 function getTypeLabel(type: VendorType): string {
@@ -136,5 +157,13 @@ function handleBack() {
 
 .url-item {
     margin-bottom: 8px;
+}
+
+.header-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 8px;
+    word-break: break-all;
 }
 </style>

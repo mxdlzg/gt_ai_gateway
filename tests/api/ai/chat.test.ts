@@ -337,6 +337,63 @@ describe("AI Chat API", () => {
             // Verify authentication headers are set
             expect(receivedHeaders["authorization"] || receivedHeaders["x-api-key"]).toBeTruthy();
         }, 30000);
+
+        it("should apply provider headers and store final request headers in record", async () => {
+            const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+            const providerHeaderVendor = await requestHelper.post(
+                "/vendor/create.json",
+                {
+                    type: "other",
+                    name: "Header Override Vendor",
+                    token: "header-override-token",
+                    urls: { openai: `${mockBaseUrl}/chat/completions` },
+                    headers: {
+                        "x-provider-header": "provider-value",
+                        "x-provider-only": "provider-only-value",
+                    },
+                },
+                adminToken,
+            );
+
+            const modelName = `provider-header-model-${Date.now()}`;
+            const providerHeaderModel = await requestHelper.post(
+                "/model/create.json",
+                modelFixtures.createRandomModel(providerHeaderVendor.body.id, modelName),
+                adminToken,
+            );
+
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                mockHelper.generateOpenAIChatRequest({
+                    model: modelName,
+                    stream: false,
+                }),
+                testUserToken,
+                {
+                    "x-provider-header": "client-value",
+                    "x-client-only": "client-only-value",
+                },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body._received_headers["x-provider-header"]).toBe("provider-value");
+            expect(response.body._received_headers["x-provider-only"]).toBe("provider-only-value");
+            expect(response.body._received_headers["x-client-only"]).toBe("client-only-value");
+
+            const recordsResponse = await requestHelper.get(
+                "/record/latest.json?limit=1",
+                adminToken,
+            );
+            const record = recordsResponse.body[0];
+            expect(record.model_id).toBe(providerHeaderModel.body.id);
+            expect(record.request_headers).toBeTruthy();
+
+            const requestHeaders = JSON.parse(record.request_headers);
+            expect(requestHeaders["x-provider-header"]).toBe("provider-value");
+            expect(requestHeaders["x-provider-only"]).toBe("provider-only-value");
+            expect(requestHeaders["x-client-only"]).toBe("client-only-value");
+            expect(requestHeaders.authorization).toBe("Bearer header-override-token");
+        }, 30000);
     });
 
     describe("vendor_model_id substitution", () => {

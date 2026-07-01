@@ -13,6 +13,12 @@
                 <span class="model-count">共 {{ models.length }} 个模型</span>
                 <a-space>
                     <a-button @click="addModalVisible = true">手动添加</a-button>
+                    <a-select
+                        v-model:value="fetchSource"
+                        size="middle"
+                        style="width: 180px"
+                        :options="fetchSourceOptions"
+                    />
                     <a-button type="primary" :loading="fetchLoading" @click="handleFetch">
                         自动获取
                     </a-button>
@@ -64,7 +70,7 @@
             title="手动添加模型"
             :confirm-loading="addLoading"
             @ok="handleManualAdd"
-            @cancel="addModalVisible = false; manualModelId = ''"
+            @cancel="resetManualAdd"
         >
             <a-form layout="vertical" style="margin-top: 8px">
                 <a-form-item label="Model ID">
@@ -74,6 +80,15 @@
                         allow-clear
                         @pressEnter="handleManualAdd"
                     />
+                </a-form-item>
+                <a-form-item label="支持协议">
+                    <a-radio-group v-model:value="manualFormatsMode">
+                        <a-radio value="auto">全部</a-radio>
+                        <a-radio value="manual">手动指定</a-radio>
+                    </a-radio-group>
+                </a-form-item>
+                <a-form-item v-if="manualFormatsMode === 'manual'" label="指定协议">
+                    <a-checkbox-group v-model:value="manualFormatsSelected" :options="formatOptions" />
                 </a-form-item>
             </a-form>
         </a-modal>
@@ -152,6 +167,7 @@ import { getVendor, listVendorModels, fetchVendorModels, syncVendorModels, addVe
 import { formatDate } from '@/utils/format';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
 import type { Vendor, VendorModel } from '@/types/vendor';
+import type { VendorModelFetchSource } from '@/api/vendor';
 import DialogTest from './DialogTest.vue';
 
 const route = useRoute();
@@ -165,8 +181,16 @@ const testDialogRef = ref<InstanceType<typeof DialogTest>>();
 const listLoading = ref(false);
 const fetchLoading = ref(false);
 const syncLoading = ref(false);
+const fetchSource = ref<VendorModelFetchSource>('auto');
+const fetchSourceOptions = [
+    { label: '自动选择来源', value: 'auto' },
+    { label: 'OpenAI /v1/models', value: 'openai' },
+    { label: 'Anthropic /v1/models', value: 'anthropic' },
+];
 
 const manualModelId = ref('');
+const manualFormatsMode = ref<'auto' | 'manual'>('auto');
+const manualFormatsSelected = ref<string[]>([]);
 const addLoading = ref(false);
 const addModalVisible = ref(false);
 
@@ -243,10 +267,12 @@ async function handleManualAdd() {
     if (!id) return;
     addLoading.value = true;
     try {
-        await addVendorModel(vendorId, id);
+        const allowedFormats = manualFormatsMode.value === 'manual' && manualFormatsSelected.value.length > 0
+            ? manualFormatsSelected.value
+            : null;
+        await addVendorModel(vendorId, id, allowedFormats);
         notifySuccess('添加成功');
-        manualModelId.value = '';
-        addModalVisible.value = false;
+        resetManualAdd();
         await loadModels();
     } catch (error) {
         notifyRequestError(error, '添加失败');
@@ -255,11 +281,18 @@ async function handleManualAdd() {
     }
 }
 
+function resetManualAdd() {
+    addModalVisible.value = false;
+    manualModelId.value = '';
+    manualFormatsMode.value = 'auto';
+    manualFormatsSelected.value = [];
+}
+
 
 async function handleFetch() {
     fetchLoading.value = true;
     try {
-        const result = await fetchVendorModels(vendorId);
+        const result = await fetchVendorModels(vendorId, fetchSource.value);
         fetchedModels.value = result.models;
         // 默认预选已保存的模型
         const savedIds = new Set(models.value.map(m => m.model_id));

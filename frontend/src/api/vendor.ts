@@ -17,6 +17,13 @@ export interface VendorTestResponse {
     error?: unknown;
 }
 
+export type VendorModelFetchSource = 'auto' | 'openai' | 'anthropic';
+
+export interface VendorModelFetchResponse {
+    models: string[];
+    source: VendorModelFetchSource;
+}
+
 export async function listVendors(params?: VendorQuery): Promise<ListResult<Vendor>> {
     return request.get('/vendor/list.json', { params });
 }
@@ -49,16 +56,16 @@ export async function fetchVendorModelsByIds(ids: number[]): Promise<import('../
     return request.post('/vendor-model/batch.json', { ids });
 }
 
-export async function fetchVendorModels(vendorId: number): Promise<{ models: string[] }> {
-    return request.get(`/vendor/${vendorId}/model/fetch.json`);
+export async function fetchVendorModels(vendorId: number, source: VendorModelFetchSource = 'auto'): Promise<VendorModelFetchResponse> {
+    return request.get(`/vendor/${vendorId}/model/fetch.json`, { params: { source } });
 }
 
 export async function syncVendorModels(vendorId: number, modelIds: string[]): Promise<import('../types/vendor').VendorModel[]> {
     return request.post(`/vendor/${vendorId}/model/sync.json`, { model_ids: modelIds });
 }
 
-export async function addVendorModel(vendorId: number, modelId: string): Promise<import('../types/vendor').VendorModel> {
-    return request.post(`/vendor/${vendorId}/model/add.json`, { model_id: modelId });
+export async function addVendorModel(vendorId: number, modelId: string, allowedFormats?: string[] | null): Promise<import('../types/vendor').VendorModel> {
+    return request.post(`/vendor/${vendorId}/model/add.json`, { model_id: modelId, allowed_formats: allowedFormats });
 }
 
 export async function updateVendorModel(vendorId: number, id: number, allowedFormats: string[] | null): Promise<import('../types/vendor').VendorModel> {
@@ -79,6 +86,14 @@ export async function testVendor(
     format: string = 'openai',
     model?: string,
     autoConvert: boolean = false,
+    testContent?: string,
+    maxTokens?: number,
 ): Promise<VendorTestResponse> {
-    return request.post(`/vendor/${id}/test.json`, { format, model, auto_convert: autoConvert });
+    return request.post(`/vendor/${id}/test.json`, {
+        format,
+        model,
+        auto_convert: autoConvert,
+        test_content: testContent,
+        max_tokens: maxTokens,
+    });
 }

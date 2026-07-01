@@ -1,0 +1,2 @@
+ALTER TABLE vendor ADD COLUMN headers TEXT DEFAULT '{}' NOT NULL;
+ALTER TABLE record ADD COLUMN request_headers TEXT NULL;

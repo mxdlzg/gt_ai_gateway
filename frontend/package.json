@@ -6,15 +6,16 @@
   "scripts": {
     "dev": "vite",
     "build:viewer": "node scripts/build-viewer.mjs",
-    "build": "npm run build:viewer && vue-tsc -b && vite build",
+    "build": "pnpm run build:viewer && vue-tsc -b && vite build",
     "preview": "vite preview",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "test": "vitest",
     "test:run": "vitest run",
-    "build:tauri": "npm run build:viewer && vite build --mode tauri"
+    "build:tauri": "pnpm run build:viewer && vite build --mode tauri"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "^7.0.1",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",

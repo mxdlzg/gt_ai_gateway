@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from "vitest";
 import requestHelper from "../../helpers/requestHelper";
 import vendorFixtures from "../../fixtures/vendorFixtures";
 import dbHelper from "../../helpers/dbHelper";
+import mockServer from "../../helpers/mockServer";
 import { setupAdminUser } from "../../globalSetup";
 
 /**
@@ -325,6 +326,7 @@ describe("Vendor Model API", () => {
 
             expect(response.status).toBe(200);
             expect(response.body).toHaveProperty("models");
+            expect(response.body.source).toBe("openai");
             expect(Array.isArray(response.body.models)).toBe(true);
 
             // Mock server returns 5 models but whisper and dall-e are filtered out
@@ -334,6 +336,47 @@ describe("Vendor Model API", () => {
             expect(models).toContain("mock-gpt-3.5-turbo");
             expect(models).not.toContain("mock-whisper-1");
             expect(models).not.toContain("mock-dall-e-3");
+        });
+
+        it("should fetch models from Anthropic-compatible models endpoint", async () => {
+            const vendor = await requestHelper.post(
+                "/vendor/create.json",
+                vendorFixtures.VENDOR_FIXTURES.anthropic(),
+                adminToken,
+            );
+
+            const response = await requestHelper.get(
+                `/vendor/${vendor.body.id}/model/fetch.json?source=anthropic`,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.source).toBe("anthropic");
+            expect(response.body.models).toContain("mock-gpt-4o");
+            expect(response.body.models).toContain("mock-gpt-4o-mini");
+            expect(response.body.models).not.toContain("mock-whisper-1");
+        });
+
+        it("should fetch OpenAI-style models from an Anthropic-only base URL", async () => {
+            const vendor = await requestHelper.post(
+                "/vendor/create.json",
+                vendorFixtures.VENDOR_FIXTURES.anthropic(),
+                adminToken,
+            );
+
+            const response = await requestHelper.get(
+                `/vendor/${vendor.body.id}/model/fetch.json?source=openai`,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.source).toBe("openai");
+            expect(response.body.models).toContain("mock-gpt-4o");
+            expect(response.body.models).not.toContain("mock-dall-e-3");
+
+            const headers = mockServer.getReceivedHeaders();
+            expect(headers.authorization).toBeTruthy();
+            expect(headers["x-api-key"]).toBeTruthy();
         });
     });
 });

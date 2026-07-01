@@ -4,7 +4,6 @@ import userService from "../service/userService";
 import sender from "../service/senderService";
 import { SgModel } from "../model/sgModel";
 import { SgUser } from "../model/sgUser";
-import { SgVendor } from "../model/sgVendor";
 import { ApiFormat, UserStatus } from "../constants";
 import customError from "../util/customError";
 
@@ -50,17 +49,7 @@ async function chatCompletions(c: Context) {
         throw new customError.NotFoundError("model not found");
     }
 
-    //获取 vendor 配置
-    const vendor: SgVendor | null = await SgVendor.query().find(
-        modelConfig!.vendor_id!,
-    );
-    console.log("vendor:", vendor);
-
-    if (vendor == null) {
-        throw new customError.NotFoundError("vendor not found");
-    }
-
-    return sender.sendRequest(c, user!, modelConfig!, vendor!, ApiFormat.OPENAI, body);
+    return sender.sendRequest(c, user!, modelConfig!, ApiFormat.OPENAI, body);
 }
 
 async function anthropicMessages(c: Context) {
@@ -107,17 +96,7 @@ async function anthropicMessages(c: Context) {
         throw new customError.NotFoundError("model not found");
     }
 
-    //获取 vendor 配置
-    const vendor: SgVendor | null = await SgVendor.query().find(
-        modelConfig!.vendor_id!,
-    );
-    console.log("vendor:", vendor);
-
-    if (vendor == null) {
-        throw new customError.NotFoundError("vendor not found");
-    }
-
-    return sender.sendRequest(c, user, modelConfig, vendor, ApiFormat.ANTHROPIC, body);
+    return sender.sendRequest(c, user, modelConfig, ApiFormat.ANTHROPIC, body);
 }
 
 async function responsesApi(c: Context) {
@@ -148,12 +127,7 @@ async function responsesApi(c: Context) {
         throw new customError.NotFoundError("model not found");
     }
 
-    const vendor: SgVendor | null = await SgVendor.query().find(modelConfig!.vendor_id!);
-    if (vendor == null) {
-        throw new customError.NotFoundError("vendor not found");
-    }
-
-    return sender.sendRequest(c, user!, modelConfig!, vendor!, ApiFormat.RESPONSES, body);
+    return sender.sendRequest(c, user!, modelConfig!, ApiFormat.RESPONSES, body);
 }
 
 export default {
