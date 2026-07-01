@@ -5,8 +5,8 @@
     "build": {
         "frontendDist": "../../frontend/dist",
         "devUrl": "http://localhost:8721",
-        "beforeDevCommand": "cd ../frontend && npm run dev",
-        "beforeBuildCommand": "cd .. && npm run tauri:build-sidecar-backend && cd frontend && npm run build:tauri"
+        "beforeDevCommand": "cd ../frontend && pnpm run dev",
+        "beforeBuildCommand": "cd .. && pnpm run tauri:build-sidecar-backend && cd frontend && pnpm run build:tauri"
     },
     "app": {
         "windows": [
