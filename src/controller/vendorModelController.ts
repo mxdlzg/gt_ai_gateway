@@ -152,7 +152,7 @@ function extractModelIds(data: any): string[] {
 
 
 async function listVendorModels(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
     }
@@ -167,7 +167,7 @@ async function listVendorModels(c: Context) {
 
 
 async function fetchVendorModels(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
     }
@@ -182,10 +182,10 @@ async function fetchVendorModels(c: Context) {
     const headers = buildModelFetchHeaders(vendor, source);
 
     try {
-        const response = await fetch(modelsUrl, {
+        const response = await senderService.fetchWithProxy(modelsUrl, {
             method: "GET",
             headers,
-        });
+        }, vendor);
 
         if (!response.ok) {
             const text = await response.text();
@@ -209,7 +209,7 @@ async function fetchVendorModels(c: Context) {
 
 
 async function syncVendorModels(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
     }
@@ -248,7 +248,7 @@ async function syncVendorModels(c: Context) {
 
 
 async function addVendorModel(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
     }
@@ -312,8 +312,8 @@ async function getVendorModelsByIds(c: Context) {
 
 
 async function updateVendorModel(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
-    const recordId = parseInt(c.req.param("modelId"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
+    const recordId = parseInt(c.req.param("modelId") ?? "", 10);
 
     if (isNaN(vendorId) || isNaN(recordId)) {
         throw new customError.AppError("Invalid ID format");
@@ -346,8 +346,8 @@ async function updateVendorModel(c: Context) {
 
 
 async function deleteVendorModel(c: Context) {
-    const vendorId = parseInt(c.req.param("id"), 10);
-    const recordId = parseInt(c.req.param("modelId"), 10);
+    const vendorId = parseInt(c.req.param("id") ?? "", 10);
+    const recordId = parseInt(c.req.param("modelId") ?? "", 10);
 
     if (isNaN(vendorId) || isNaN(recordId)) {
         throw new customError.AppError("Invalid ID format");

@@ -1,0 +1,1 @@
+ALTER TABLE vendor ADD COLUMN proxy_url TEXT DEFAULT '' NOT NULL;

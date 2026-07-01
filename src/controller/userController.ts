@@ -25,7 +25,7 @@ async function listUsers(c: Context) {
 
 async function getUser(c: Context) {
     const id = c.req.param("id");
-    const userId = parseInt(id, 10);
+    const userId = parseInt(id ?? "", 10);
 
     if (isNaN(userId)) {
         return c.json({ error: "Invalid ID format" }, 400);
@@ -89,7 +89,7 @@ async function createUser(c: Context) {
 
 async function updateUser(c: Context) {
     const id = c.req.param("id");
-    const userId = parseInt(id, 10);
+    const userId = parseInt(id ?? "", 10);
 
     if (isNaN(userId)) {
         return c.json({ error: "Invalid ID format" }, 400);
@@ -127,7 +127,7 @@ async function updateUser(c: Context) {
 
 async function adjustBalance(c: Context) {
     const id = c.req.param("id");
-    const userId = parseInt(id, 10);
+    const userId = parseInt(id ?? "", 10);
 
     if (isNaN(userId)) {
         return c.json({ error: "Invalid ID format" }, 400);

@@ -13,6 +13,7 @@ export interface VendorTestResponse {
     request_method?: string;
     request_headers?: Record<string, string>;
     request_body?: unknown;
+    proxy_url?: string | null;
     response?: unknown;
     error?: unknown;
 }

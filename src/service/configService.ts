@@ -5,6 +5,7 @@ export enum ConfigKey {
     RESPONSES_PROMPT_CACHE_KEY_ENABLED = "responses_prompt_cache_key_enabled",
     CLAUDE_CODE_TRACKING_REWRITE_ENABLED = "claudecode_tracking_rewrite_enabled",
     HOST_KEY = "host_key",
+    UPSTREAM_PROXY_URL = "upstream_proxy_url",
 }
 
 export class ConfigItem {

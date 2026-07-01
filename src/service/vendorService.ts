@@ -13,7 +13,7 @@ async function getVendorByName(name: string): Promise<SgVendor | null> {
 
 async function updateVendor(
     vendorId: number,
-    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string> },
+    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string>; proxy_url?: string },
 ): Promise<SgVendor | null> {
     const vendor = await SgVendor.query().find(vendorId);
 
@@ -34,6 +34,10 @@ async function updateVendor(
 
     if (data.headers !== undefined) {
         updateData.headers = JSON.stringify(data.headers);
+    }
+
+    if (data.proxy_url !== undefined) {
+        updateData.proxy_url = data.proxy_url.trim();
     }
 
     await SgVendor.query()

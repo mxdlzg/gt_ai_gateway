@@ -16,6 +16,9 @@
                 <a-descriptions-item label="Token">
                     <TokenDisplay :token="vendor.token" />
                 </a-descriptions-item>
+                <a-descriptions-item label="代理地址">
+                    {{ vendor.proxy_url || '使用全局配置' }}
+                </a-descriptions-item>
                 <a-descriptions-item label="URLs">
                     <div v-for="item in getMergedUrls(vendor)" :key="item.key" class="url-item">
                         <strong>{{ item.key }}:</strong> {{ item.url }}

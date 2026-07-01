@@ -48,6 +48,26 @@
             </div>
 
 
+            <div class="settings-section">
+                <h3 class="section-title">网络代理</h3>
+                <div class="settings-list">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">全局上游代理</div>
+                            <div class="setting-desc">用于请求上游供应商的代理地址。留空则直连；供应商单独配置后会优先使用供应商代理。</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-input
+                                v-model:value="form.upstream_proxy_url"
+                                :disabled="saving"
+                                allow-clear
+                                placeholder="例如：http://127.0.0.1:7890"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
 
             <div class="settings-section">
                 <h3 class="section-title">系统更新</h3>
@@ -115,18 +135,21 @@ const originalConfig = reactive({
     cch_rewrite_enabled: false,
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
+    upstream_proxy_url: '',
 });
 
 const form = reactive({
     cch_rewrite_enabled: false,
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
+    upstream_proxy_url: '',
 });
 
 const isDirty = computed(() => {
     return form.cch_rewrite_enabled !== originalConfig.cch_rewrite_enabled ||
            form.responses_prompt_cache_key_enabled !== originalConfig.responses_prompt_cache_key_enabled ||
-           form.claude_code_tracking_rewrite_enabled !== originalConfig.claude_code_tracking_rewrite_enabled;
+           form.claude_code_tracking_rewrite_enabled !== originalConfig.claude_code_tracking_rewrite_enabled ||
+           form.upstream_proxy_url !== originalConfig.upstream_proxy_url;
 });
 
 onMounted(() => {
@@ -145,6 +168,9 @@ async function loadConfig(): Promise<void> {
         
         form.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false"; // Default to true
         originalConfig.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false";
+
+        form.upstream_proxy_url = config.upstream_proxy_url || '';
+        originalConfig.upstream_proxy_url = config.upstream_proxy_url || '';
         if (!appStore.version) {
             appStore.fetchVersion();
         }
@@ -157,6 +183,7 @@ function cancelChanges() {
     form.cch_rewrite_enabled = originalConfig.cch_rewrite_enabled;
     form.responses_prompt_cache_key_enabled = originalConfig.responses_prompt_cache_key_enabled;
     form.claude_code_tracking_rewrite_enabled = originalConfig.claude_code_tracking_rewrite_enabled;
+    form.upstream_proxy_url = originalConfig.upstream_proxy_url;
 }
 
 async function doCheckUpdate() {
@@ -198,11 +225,14 @@ async function saveConfig() {
             cch_rewrite_enabled: form.cch_rewrite_enabled ? "true" : "false",
             responses_prompt_cache_key_enabled: form.responses_prompt_cache_key_enabled ? "true" : "false",
             claude_code_tracking_rewrite_enabled: form.claude_code_tracking_rewrite_enabled ? "true" : "false",
+            upstream_proxy_url: form.upstream_proxy_url.trim(),
         });
         message.success('配置已保存');
         originalConfig.cch_rewrite_enabled = form.cch_rewrite_enabled;
         originalConfig.responses_prompt_cache_key_enabled = form.responses_prompt_cache_key_enabled;
         originalConfig.claude_code_tracking_rewrite_enabled = form.claude_code_tracking_rewrite_enabled;
+        originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
+        form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     } catch {
         // error handling is typically done by the request interceptor
     } finally {
@@ -277,6 +307,11 @@ async function saveConfig() {
     color: var(--text-secondary, #8c8c8c);
     font-size: 13px;
     line-height: 1.5;
+}
+
+.setting-input {
+    width: 320px;
+    flex-shrink: 0;
 }
 
 .page-actions {

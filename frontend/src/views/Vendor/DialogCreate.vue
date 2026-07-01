@@ -31,6 +31,13 @@
                     placeholder="请输入 API Token"
                 />
             </a-form-item>
+            <a-form-item label="代理地址（可选）">
+                <a-input
+                    v-model:value="formState.proxy_url"
+                    allow-clear
+                    placeholder="留空使用全局代理，例如：http://127.0.0.1:7890"
+                />
+            </a-form-item>
             <a-form-item label="URLs 配置（可选）">
                 <!-- 查看模式：合并展示 preset + 用户自定义 -->
                 <template v-if="urlsMode === 'view'">
@@ -137,6 +144,7 @@ const formState = reactive({
     type: 'openai' as VendorType,
     name: '',
     token: '',
+    proxy_url: '',
 });
 
 const urlsMode = ref<'view' | 'edit'>('view');
@@ -180,6 +188,7 @@ function open() {
     formState.type = 'openai';
     formState.name = '';
     formState.token = '';
+    formState.proxy_url = '';
     urlsForm.splice(0, urlsForm.length);
     headersForm.splice(0, headersForm.length);
     urlsMode.value = 'view';
@@ -229,6 +238,7 @@ async function handleOk() {
             type: formState.type,
             name: formState.name,
             token: formState.token,
+            proxy_url: formState.proxy_url.trim(),
         };
 
         // 只提交用户自定义的 URLs，后端对未定义的 key 回退到 preset

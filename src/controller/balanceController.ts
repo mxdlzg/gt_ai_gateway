@@ -27,7 +27,7 @@ async function listRechargeRecords(c: Context) {
 
 async function getRechargeRecord(c: Context) {
     const id = c.req.param("id");
-    const recordId = parseInt(id, 10);
+    const recordId = parseInt(id ?? "", 10);
 
     if (isNaN(recordId)) {
         return c.json({ error: "Invalid ID format" }, 400);

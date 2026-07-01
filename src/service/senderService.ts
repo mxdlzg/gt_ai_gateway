@@ -149,6 +149,55 @@ function serializeHeaders(headers: Headers): Record<string, string> {
 }
 
 
+const proxyAgentCache = new Map<string, unknown>();
+
+
+async function getProxyAgent(proxyUrl: string): Promise<unknown> {
+    const cached = proxyAgentCache.get(proxyUrl);
+    if (cached) return cached;
+
+    const { ProxyAgent } = await import("undici");
+    const agent = new ProxyAgent(proxyUrl);
+    proxyAgentCache.set(proxyUrl, agent);
+    return agent;
+}
+
+
+async function resolveProxyUrl(vendor?: SgVendor | null): Promise<string> {
+    const vendorProxyUrl = vendor?.getProxyUrl() ?? "";
+    if (vendorProxyUrl) {
+        return vendorProxyUrl;
+    }
+
+    return (await configService.getConfig(ConfigKey.UPSTREAM_PROXY_URL, "")).getString().trim();
+}
+
+
+async function buildFetchInitWithProxy(
+    init: RequestInit,
+    vendor?: SgVendor | null,
+): Promise<RequestInit> {
+    const proxyUrl = await resolveProxyUrl(vendor);
+    if (!proxyUrl || !ormService.isNode) {
+        return init;
+    }
+
+    return {
+        ...init,
+        dispatcher: await getProxyAgent(proxyUrl),
+    } as RequestInit;
+}
+
+
+async function fetchWithProxy(
+    url: string,
+    init: RequestInit,
+    vendor?: SgVendor | null,
+): Promise<Response> {
+    return fetch(url, await buildFetchInitWithProxy(init, vendor) as RequestInit);
+}
+
+
 interface SelectedProviderRoute {
     vendor: SgVendor;
     vendorModel: SgVendorModel | null;
@@ -997,7 +1046,7 @@ async function sendRequest(
     // 4. 发起上游请求，拿到响应头后立即判断响应类型
     let upstreamRes: Response;
     try {
-        upstreamRes = await fetch(url, { method: "POST", headers: finalHeaders, body: upstreamBody, signal: c.req.raw.signal });
+        upstreamRes = await fetchWithProxy(url, { method: "POST", headers: finalHeaders, body: upstreamBody, signal: c.req.raw.signal }, vendor);
     } catch (e: any) {
         console.error("Upstream fetch failed:", e);
         await recordService.update(record.id, {
@@ -1036,6 +1085,8 @@ export default {
     isResponsesOutputStartedEvent,
     normalizeUsage,
     resolveUpstreamFormat,
+    resolveProxyUrl,
     serializeHeaders,
+    fetchWithProxy,
     sendRequest,
 };

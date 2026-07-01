@@ -71,7 +71,7 @@ async function latestRecords(c: Context) {
 
 async function getRecord(c: Context) {
     const id = c.req.param("id");
-    const recordId = parseInt(id, 10);
+    const recordId = parseInt(id ?? "", 10);
     console.log("id", id, "recordId", recordId);
 
     if (isNaN(recordId)) {

@@ -21,6 +21,7 @@ function formatVendor(vendor: SgVendor, modelCount = 0) {
         token: vendor.token,
         urls: vendor.getUrls(),
         headers: vendor.getHeaders(),
+        proxy_url: vendor.getProxyUrl(),
         model_count: modelCount,
         created_at: vendor.created_at,
         updated_at: vendor.updated_at,
@@ -65,7 +66,7 @@ async function listVendors(c: Context) {
 
 async function getVendor(c: Context) {
     const id = c.req.param("id");
-    const vendorId = parseInt(id, 10);
+    const vendorId = parseInt(id ?? "", 10);
 
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
@@ -101,7 +102,7 @@ async function getVendorsByIds(c: Context) {
 
 async function createVendor(c: Context) {
     const body = await c.req.json();
-    const { type, name, token, urls, headers } = body;
+    const { type, name, token, urls, headers, proxy_url } = body;
 
     // Validation - 不验证 urls，允许为空
     if (!type || !name || !token) {
@@ -114,6 +115,7 @@ async function createVendor(c: Context) {
         token,
         urls: urls ? JSON.stringify(urls) : "{}",
         headers: headers ? JSON.stringify(headers) : "{}",
+        proxy_url: typeof proxy_url === "string" ? proxy_url.trim() : "",
     });
 
     return c.json(formatVendor(instance));
@@ -122,14 +124,14 @@ async function createVendor(c: Context) {
 
 async function updateVendor(c: Context) {
     const id = c.req.param("id");
-    const vendorId = parseInt(id, 10);
+    const vendorId = parseInt(id ?? "", 10);
 
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
     }
 
     const body = await c.req.json();
-    const { type, name, token, urls, headers } = body;
+    const { type, name, token, urls, headers, proxy_url } = body;
 
     const updatedVendor = await vendorService.updateVendor(vendorId, {
         type,
@@ -137,6 +139,7 @@ async function updateVendor(c: Context) {
         token,
         urls,
         headers,
+        proxy_url,
     });
 
     if (!updatedVendor) {
@@ -149,7 +152,7 @@ async function updateVendor(c: Context) {
 
 async function deleteVendor(c: Context) {
     const id = c.req.param("id");
-    const vendorId = parseInt(id, 10);
+    const vendorId = parseInt(id ?? "", 10);
 
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
@@ -178,7 +181,7 @@ async function deleteVendor(c: Context) {
 
 async function testVendor(c: Context) {
     const id = c.req.param("id");
-    const vendorId = parseInt(id, 10);
+    const vendorId = parseInt(id ?? "", 10);
 
     if (isNaN(vendorId)) {
         throw new customError.AppError("Invalid ID format");
@@ -258,11 +261,12 @@ async function testVendor(c: Context) {
     try {
         console.log(`[testVendor] Testing vendor ${vendor.name} (${vendor.id}) with model ${model} at ${url}`);
         const startTime = Date.now();
-        const response = await fetch(url, {
+        const proxyUrl = await senderService.resolveProxyUrl(vendor);
+        const response = await senderService.fetchWithProxy(url, {
             method: "POST",
             headers,
             body: upstreamBody,
-        });
+        }, vendor);
         const duration = Date.now() - startTime;
         const responseText = await response.text();
         let responseData;
@@ -290,6 +294,7 @@ async function testVendor(c: Context) {
             status: response.status,
             duration,
             url,
+            proxy_url: proxyUrl || null,
             converted_from: convertedFrom,
             converted_to: convertedTo,
             request_method: "POST",
@@ -315,6 +320,7 @@ async function testVendor(c: Context) {
             success: false,
             error: error.message || String(error),
             url,
+            proxy_url: await senderService.resolveProxyUrl(vendor) || null,
             request_method: "POST",
             request_headers: Object.fromEntries(headerEntries),
             request_body: requestBodyDisplay,
