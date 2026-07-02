@@ -275,7 +275,7 @@ const selectOptions = computed(() => {
 });
 
 const formattedResponse = computed(() => {
-    const data = result.value?.response || result.value?.error;
+    const data = result.value?.response || result.value?.error_detail || result.value?.error;
     if (!data) return '';
     try {
         if (typeof data === 'object') {
@@ -401,9 +401,11 @@ async function handleTest() {
         }
     } catch (error) {
         const requestError = notifyRequestError(error, '测试请求发送失败');
+        const data = requestError.data as { error_detail?: unknown } | undefined;
         result.value = {
             success: false,
             error: requestError.message,
+            error_detail: data?.error_detail,
         };
     } finally {
         loading.value = false;

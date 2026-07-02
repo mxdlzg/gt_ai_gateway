@@ -94,6 +94,7 @@ app.get("/status.json", authMiddleware.requireAdmin, systemController.status);
 app.get("/update.json", authMiddleware.requireAdmin, systemController.checkUpdate);
 app.get("/config.json", authMiddleware.requireAdmin, configController.getConfig);
 app.put("/config.json", authMiddleware.requireAdmin, configController.updateConfig);
+app.post("/config/proxy/test.json", authMiddleware.requireAdmin, configController.testProxy);
 app.get("/client-config/status.json", authMiddleware.requireAdmin, clientConfigController.status);
 app.get("/client-config/local.json", authMiddleware.requireAdmin, clientConfigController.readLocal);
 app.post("/client-config/create.json", authMiddleware.requireAdmin, clientConfigController.create);

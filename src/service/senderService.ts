@@ -173,6 +173,75 @@ async function resolveProxyUrl(vendor?: SgVendor | null): Promise<string> {
 }
 
 
+interface SerializedFetchError {
+    name?: string;
+    message: string;
+    code?: string;
+    errno?: string | number;
+    syscall?: string;
+    hostname?: string;
+    host?: string;
+    port?: string | number;
+    address?: string;
+    cause?: SerializedFetchError;
+    errors?: SerializedFetchError[];
+}
+
+
+function serializeFetchError(error: unknown): SerializedFetchError {
+    if (!(error instanceof Error)) {
+        return { message: String(error) };
+    }
+
+    const anyError = error as any;
+    const result: SerializedFetchError = {
+        name: error.name,
+        message: error.message || String(error),
+    };
+
+    for (const key of ["code", "errno", "syscall", "hostname", "host", "port", "address"]) {
+        if (anyError[key] !== undefined) {
+            (result as any)[key] = anyError[key];
+        }
+    }
+
+    if (anyError.cause) {
+        result.cause = serializeFetchError(anyError.cause);
+    }
+
+    if (Array.isArray(anyError.errors)) {
+        result.errors = anyError.errors.map(serializeFetchError);
+    }
+
+    return result;
+}
+
+
+function formatFetchError(error: unknown): string {
+    const detail = serializeFetchError(error);
+    const cause = detail.cause;
+    const parts = [detail.message];
+
+    if (detail.code) {
+        parts.push(`code=${detail.code}`);
+    }
+    if (cause?.message && cause.message !== detail.message) {
+        parts.push(`cause=${cause.message}`);
+    }
+    if (cause?.code) {
+        parts.push(`cause_code=${cause.code}`);
+    }
+    if (cause?.host || cause?.hostname) {
+        parts.push(`host=${cause.host || cause.hostname}`);
+    }
+    if (cause?.port) {
+        parts.push(`port=${cause.port}`);
+    }
+
+    return parts.join("; ");
+}
+
+
 async function buildFetchInitWithProxy(
     init: RequestInit,
     vendor?: SgVendor | null,
@@ -189,12 +258,51 @@ async function buildFetchInitWithProxy(
 }
 
 
+async function buildFetchInitWithProxyUrl(
+    init: RequestInit,
+    proxyUrl?: string | null,
+): Promise<RequestInit> {
+    const normalizedProxyUrl = (proxyUrl ?? "").trim();
+    if (!normalizedProxyUrl || !ormService.isNode) {
+        return init;
+    }
+
+    return {
+        ...init,
+        dispatcher: await getProxyAgent(normalizedProxyUrl),
+    } as RequestInit;
+}
+
+
 async function fetchWithProxy(
     url: string,
     init: RequestInit,
     vendor?: SgVendor | null,
 ): Promise<Response> {
-    return fetch(url, await buildFetchInitWithProxy(init, vendor) as RequestInit);
+    const proxyUrl = await resolveProxyUrl(vendor);
+    if (proxyUrl && ormService.isNode) {
+        const { fetch: undiciFetch } = await import("undici");
+        const proxiedInit = await buildFetchInitWithProxyUrl(init, proxyUrl);
+        return undiciFetch(url, proxiedInit as any) as unknown as Response;
+    }
+
+    return fetch(url, init);
+}
+
+
+async function fetchWithProxyUrl(
+    url: string,
+    init: RequestInit,
+    proxyUrl?: string | null,
+): Promise<Response> {
+    const normalizedProxyUrl = (proxyUrl ?? "").trim();
+    if (normalizedProxyUrl && ormService.isNode) {
+        const { fetch: undiciFetch } = await import("undici");
+        const proxiedInit = await buildFetchInitWithProxyUrl(init, normalizedProxyUrl);
+        return undiciFetch(url, proxiedInit as any) as unknown as Response;
+    }
+
+    return fetch(url, init);
 }
 
 
@@ -1048,10 +1156,14 @@ async function sendRequest(
     try {
         upstreamRes = await fetchWithProxy(url, { method: "POST", headers: finalHeaders, body: upstreamBody, signal: c.req.raw.signal }, vendor);
     } catch (e: any) {
-        console.error("Upstream fetch failed:", e);
+        const errorDetail = serializeFetchError(e);
+        console.error("Upstream fetch failed:", errorDetail);
         await recordService.update(record.id, {
             status: SgRecordStatus.FAILED,
-            response_data: String(e),
+            response_data: JSON.stringify({
+                error: formatFetchError(e),
+                detail: errorDetail,
+            }),
             end_at: new Date(),
         });
         throw e;
@@ -1087,6 +1199,9 @@ export default {
     resolveUpstreamFormat,
     resolveProxyUrl,
     serializeHeaders,
+    serializeFetchError,
+    formatFetchError,
     fetchWithProxy,
+    fetchWithProxyUrl,
     sendRequest,
 };

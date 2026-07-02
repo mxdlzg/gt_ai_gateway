@@ -16,6 +16,7 @@ export interface VendorTestResponse {
     proxy_url?: string | null;
     response?: unknown;
     error?: unknown;
+    error_detail?: unknown;
 }
 
 export type VendorModelFetchSource = 'auto' | 'openai' | 'anthropic';

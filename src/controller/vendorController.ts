@@ -304,6 +304,7 @@ async function testVendor(c: Context) {
             response: responseData,
         });
     } catch (error: any) {
+        const errorDetail = senderService.serializeFetchError(error);
         let requestBodyDisplay: unknown = upstreamBody;
         try {
             requestBodyDisplay = JSON.parse(upstreamBody);
@@ -319,7 +320,8 @@ async function testVendor(c: Context) {
 
         return c.json({
             success: false,
-            error: error.message || String(error),
+            error: senderService.formatFetchError(error),
+            error_detail: errorDetail,
             url,
             proxy_url: await senderService.resolveProxyUrl(vendor) || null,
             request_method: "POST",

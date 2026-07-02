@@ -117,5 +117,9 @@ describe('Vendor Test API', () => {
         expect(response.status).toBe(500);
         expect(response.body.success).toBe(false);
         expect(response.body).toHaveProperty('error');
+        expect(response.body.error).toContain('fetch failed');
+        expect(response.body).toHaveProperty('error_detail');
+        expect(response.body.error_detail).toHaveProperty('message');
+        expect(response.body.error_detail).toHaveProperty('cause');
     });
 });

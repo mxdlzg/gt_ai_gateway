@@ -57,12 +57,25 @@
                             <div class="setting-desc">用于请求上游供应商的代理地址。留空则直连；供应商单独配置后会优先使用供应商代理。</div>
                         </div>
                         <div class="setting-action setting-input">
-                            <a-input
-                                v-model:value="form.upstream_proxy_url"
-                                :disabled="saving"
-                                allow-clear
-                                placeholder="例如：http://127.0.0.1:7890"
-                            />
+                            <a-input-group compact>
+                                <a-input
+                                    v-model:value="form.upstream_proxy_url"
+                                    :disabled="saving"
+                                    allow-clear
+                                    placeholder="例如：http://127.0.0.1:7890"
+                                    style="width: calc(100% - 72px)"
+                                />
+                                <a-button
+                                    :loading="testingProxy"
+                                    :disabled="saving"
+                                    @click="handleTestProxy"
+                                >
+                                    测试
+                                </a-button>
+                            </a-input-group>
+                            <div v-if="proxyTestResult" :class="['proxy-test-result', proxyTestResult.success ? 'success' : 'error']">
+                                {{ proxyTestText }}
+                            </div>
                         </div>
                     </div>
                     <div class="setting-item">
@@ -145,7 +158,8 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed } from 'vue';
 import { message } from 'ant-design-vue/es';
-import { getConfig, updateConfig } from '@/api/config';
+import { getConfig, testProxy, updateConfig } from '@/api/config';
+import type { ProxyTestResponse } from '@/api/config';
 import { checkUpdate } from '@/api/system';
 import { useAppStore } from '@/stores/app';
 import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
@@ -160,6 +174,8 @@ const latestVersion = ref('');
 
 const loading = ref(false);
 const saving = ref(false);
+const testingProxy = ref(false);
+const proxyTestResult = ref<ProxyTestResponse | null>(null);
 
 const originalConfig = reactive({
     cch_rewrite_enabled: false,
@@ -186,6 +202,16 @@ const isDirty = computed(() => {
            form.request_record_enabled !== originalConfig.request_record_enabled ||
            form.upstream_proxy_url !== originalConfig.upstream_proxy_url ||
            form.test_request_timeout_seconds !== originalConfig.test_request_timeout_seconds;
+});
+
+const proxyTestText = computed(() => {
+    const result = proxyTestResult.value;
+    if (!result) return '';
+    const proxyText = result.proxy_url ? `代理 ${result.proxy_url}` : '直连';
+    if (result.success) {
+        return `${proxyText} 可连接，HTTP ${result.status}，耗时 ${result.duration}ms`;
+    }
+    return `${proxyText} 测试失败：${result.error || '未知错误'}`;
 });
 
 onMounted(() => {
@@ -229,6 +255,31 @@ function cancelChanges() {
     form.request_record_enabled = originalConfig.request_record_enabled;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
+}
+
+async function handleTestProxy() {
+    testingProxy.value = true;
+    proxyTestResult.value = null;
+    try {
+        const result = await testProxy(form.upstream_proxy_url);
+        proxyTestResult.value = result;
+        if (result.success) {
+            message.success(proxyTestText.value);
+        } else {
+            message.error(proxyTestText.value);
+        }
+    } catch (error: any) {
+        const detail = error?.data || error;
+        proxyTestResult.value = {
+            success: false,
+            error: detail?.error || error?.message || '测试失败',
+            error_detail: detail?.error_detail,
+            proxy_url: form.upstream_proxy_url.trim() || null,
+        };
+        message.error(proxyTestText.value);
+    } finally {
+        testingProxy.value = false;
+    }
 }
 
 async function doCheckUpdate() {
@@ -362,6 +413,21 @@ async function saveConfig() {
 .setting-input {
     width: 320px;
     flex-shrink: 0;
+}
+
+.proxy-test-result {
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.4;
+    word-break: break-word;
+}
+
+.proxy-test-result.success {
+    color: #389e0d;
+}
+
+.proxy-test-result.error {
+    color: #cf1322;
 }
 
 .page-actions {

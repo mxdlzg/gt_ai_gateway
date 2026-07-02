@@ -37,4 +37,20 @@ describe("Config API", () => {
         expect(getResponse.body.cch_rewrite_enabled).toBe("true");
         expect(getResponse.body.responses_prompt_cache_key_enabled).toBe("true");
     });
+
+    it("should test upstream proxy connectivity against a target URL", async () => {
+        const response = await requestHelper.post(
+            "/config/proxy/test.json",
+            {
+                target_url: "http://localhost:9999/v1/models",
+            },
+            ROOT_TOKEN,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.status).toBe(200);
+        expect(response.body.target_url).toBe("http://localhost:9999/v1/models");
+        expect(response.body).toHaveProperty("duration");
+    });
 });
