@@ -2,6 +2,7 @@ export interface ConfigMap {
     cch_rewrite_enabled: string;
     responses_prompt_cache_key_enabled: string;
     claude_code_tracking_rewrite_enabled: string;
+    request_record_enabled: string;
     host_key: string;
     upstream_proxy_url: string;
     test_request_timeout_ms: string;
@@ -12,6 +13,7 @@ export interface UpdateConfigRequest {
     cch_rewrite_enabled?: string;
     responses_prompt_cache_key_enabled?: string;
     claude_code_tracking_rewrite_enabled?: string;
+    request_record_enabled?: string;
     host_key?: string;
     upstream_proxy_url?: string;
     test_request_timeout_ms?: string;

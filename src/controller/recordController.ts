@@ -87,8 +87,17 @@ async function getRecord(c: Context) {
     return c.json(serializeRecord(record));
 }
 
+async function clearRecords(c: Context) {
+    const result = await recordService.clearAll();
+    return c.json({
+        success: true,
+        ...result,
+    });
+}
+
 export default {
     listRecords,
     latestRecords,
     getRecord,
+    clearRecords,
 };

@@ -16,3 +16,13 @@ export function getRecord(id: number): Promise<Record> {
 export function deleteRecord(id: number): Promise<void> {
     return request.delete(`/record/${id}`);
 }
+
+export interface ClearRecordsResponse {
+    success: boolean;
+    deleted: number;
+    stream_logs_cleared: boolean;
+}
+
+export function clearAllRecords(): Promise<ClearRecordsResponse> {
+    return request.delete('/record/clear.json');
+}

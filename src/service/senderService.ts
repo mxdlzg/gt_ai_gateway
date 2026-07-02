@@ -402,7 +402,7 @@ function buildStreamUsageAccounting(format: ApiFormat, usage: Dict | null | unde
 async function prepareStreamLog(record: SgRecord): Promise<WriteStream | null> {
     const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
 
-    if (!isStreamLogEnabled) {
+    if (!isStreamLogEnabled || record.id <= 0) {
         return null;
     }
 
@@ -426,7 +426,7 @@ async function prepareStreamLog(record: SgRecord): Promise<WriteStream | null> {
 
 async function writeRequestLog(record: SgRecord, body: string): Promise<void> {
     const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
-    if (!isStreamLogEnabled) return;
+    if (!isStreamLogEnabled || record.id <= 0) return;
 
     const logDir = join(getLogDir(), "stream");
     try {

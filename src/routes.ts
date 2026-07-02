@@ -143,6 +143,7 @@ app.get("/balance/recharge/:id", authMiddleware.requireAdmin, balanceController.
 // Record (需要管理员权限)
 app.get("/record/list.json", authMiddleware.requireAdmin, recordController.listRecords);
 app.get("/record/latest.json", authMiddleware.requireAdmin, recordController.latestRecords);
+app.delete("/record/clear.json", authMiddleware.requireAdmin, recordController.clearRecords);
 app.get("/record/:id", authMiddleware.requireAdmin, recordController.getRecord);
 
 // Stats (需要管理员权限)

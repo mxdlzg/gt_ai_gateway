@@ -59,6 +59,21 @@
             </div>
             <div class="action-area">
                 <a-space>
+                    <a-popconfirm
+                        title="确定要清空所有请求记录吗？"
+                        ok-text="清空"
+                        cancel-text="取消"
+                        ok-type="danger"
+                        :disabled="recordStore.loading || recordStore.total === 0"
+                        @confirm="handleClearAllRecords"
+                    >
+                        <a-button
+                            danger
+                            :disabled="recordStore.loading || recordStore.total === 0"
+                        >
+                            <DeleteOutlined /> 清空记录
+                        </a-button>
+                    </a-popconfirm>
                     <a-tooltip title="自动刷新">
                         <a-switch
                             v-model:checked="autoRefreshEnabled"
@@ -94,6 +109,8 @@ import RecordTable from '@/components/common/RecordTable.vue';
 import { listUsers } from '@/api/user';
 import { listModels } from '@/api/model';
 import { normalizeListResponse } from '@/utils/listResponse';
+import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
+import { DeleteOutlined } from '@ant-design/icons-vue';
 
 const userOptions = ref<{ value: number; label: string }[]>([]);
 const modelOptions = ref<{ value: number; label: string }[]>([]);
@@ -153,6 +170,17 @@ function handleAutoRefreshChange(checked: boolean) {
         void startAutoRefresh();
     } else {
         stopAutoRefresh();
+    }
+}
+
+async function handleClearAllRecords() {
+    try {
+        const deleted = await recordStore.clearAll();
+        pagination.current = 1;
+        pagination.total = 0;
+        notifySuccess(`已清空 ${deleted} 条请求记录`);
+    } catch (error) {
+        notifyRequestError(error, '清空请求记录失败');
     }
 }
 </script>

@@ -67,6 +67,18 @@
                     </div>
                     <div class="setting-item">
                         <div class="setting-info">
+                            <div class="setting-title">请求记录</div>
+                            <div class="setting-desc">启用后，会保存 LLM 请求的元数据、请求内容、响应内容、用量和耗时；关闭后新请求不再写入请求记录</div>
+                        </div>
+                        <div class="setting-action">
+                            <a-switch
+                                v-model:checked="form.request_record_enabled"
+                                :disabled="saving"
+                            />
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
                             <div class="setting-title">测试请求超时</div>
                             <div class="setting-desc">供应商连通性、模型可用性和 API 测试请求等待上游响应的最长时间</div>
                         </div>
@@ -153,6 +165,7 @@ const originalConfig = reactive({
     cch_rewrite_enabled: false,
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
+    request_record_enabled: true,
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
@@ -161,6 +174,7 @@ const form = reactive({
     cch_rewrite_enabled: false,
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
+    request_record_enabled: true,
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
@@ -169,6 +183,7 @@ const isDirty = computed(() => {
     return form.cch_rewrite_enabled !== originalConfig.cch_rewrite_enabled ||
            form.responses_prompt_cache_key_enabled !== originalConfig.responses_prompt_cache_key_enabled ||
            form.claude_code_tracking_rewrite_enabled !== originalConfig.claude_code_tracking_rewrite_enabled ||
+           form.request_record_enabled !== originalConfig.request_record_enabled ||
            form.upstream_proxy_url !== originalConfig.upstream_proxy_url ||
            form.test_request_timeout_seconds !== originalConfig.test_request_timeout_seconds;
 });
@@ -190,6 +205,9 @@ async function loadConfig(): Promise<void> {
         form.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false"; // Default to true
         originalConfig.claude_code_tracking_rewrite_enabled = config.claude_code_tracking_rewrite_enabled !== "false";
 
+        form.request_record_enabled = config.request_record_enabled !== "false"; // Default to true
+        originalConfig.request_record_enabled = config.request_record_enabled !== "false";
+
         form.upstream_proxy_url = config.upstream_proxy_url || '';
         originalConfig.upstream_proxy_url = config.upstream_proxy_url || '';
 
@@ -208,6 +226,7 @@ function cancelChanges() {
     form.cch_rewrite_enabled = originalConfig.cch_rewrite_enabled;
     form.responses_prompt_cache_key_enabled = originalConfig.responses_prompt_cache_key_enabled;
     form.claude_code_tracking_rewrite_enabled = originalConfig.claude_code_tracking_rewrite_enabled;
+    form.request_record_enabled = originalConfig.request_record_enabled;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
 }
@@ -251,6 +270,7 @@ async function saveConfig() {
             cch_rewrite_enabled: form.cch_rewrite_enabled ? "true" : "false",
             responses_prompt_cache_key_enabled: form.responses_prompt_cache_key_enabled ? "true" : "false",
             claude_code_tracking_rewrite_enabled: form.claude_code_tracking_rewrite_enabled ? "true" : "false",
+            request_record_enabled: form.request_record_enabled ? "true" : "false",
             upstream_proxy_url: form.upstream_proxy_url.trim(),
             test_request_timeout_ms: String(Math.max(1, form.test_request_timeout_seconds) * 1000),
         });
@@ -258,6 +278,7 @@ async function saveConfig() {
         originalConfig.cch_rewrite_enabled = form.cch_rewrite_enabled;
         originalConfig.responses_prompt_cache_key_enabled = form.responses_prompt_cache_key_enabled;
         originalConfig.claude_code_tracking_rewrite_enabled = form.claude_code_tracking_rewrite_enabled;
+        originalConfig.request_record_enabled = form.request_record_enabled;
         originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
         setRequestTimeoutMs(originalConfig.test_request_timeout_seconds * 1000);
