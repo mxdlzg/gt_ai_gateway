@@ -4,6 +4,7 @@ export interface ConfigMap {
     claude_code_tracking_rewrite_enabled: string;
     host_key: string;
     upstream_proxy_url: string;
+    test_request_timeout_ms: string;
     [key: string]: string;
 }
 
@@ -13,5 +14,6 @@ export interface UpdateConfigRequest {
     claude_code_tracking_rewrite_enabled?: string;
     host_key?: string;
     upstream_proxy_url?: string;
+    test_request_timeout_ms?: string;
     [key: string]: string | undefined;
 }

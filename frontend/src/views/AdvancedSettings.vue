@@ -65,6 +65,23 @@
                             />
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">测试请求超时</div>
+                            <div class="setting-desc">供应商连通性、模型可用性和 API 测试请求等待上游响应的最长时间</div>
+                        </div>
+                        <div class="setting-action setting-number">
+                            <a-input-number
+                                v-model:value="form.test_request_timeout_seconds"
+                                :disabled="saving"
+                                :min="10"
+                                :max="600"
+                                :step="10"
+                                addon-after="秒"
+                                style="width: 160px"
+                            />
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -119,6 +136,7 @@ import { message } from 'ant-design-vue/es';
 import { getConfig, updateConfig } from '@/api/config';
 import { checkUpdate } from '@/api/system';
 import { useAppStore } from '@/stores/app';
+import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
 
 const appStore = useAppStore();
 const currentVersion = computed(() => appStore.version);
@@ -136,6 +154,7 @@ const originalConfig = reactive({
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
     upstream_proxy_url: '',
+    test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
 
 const form = reactive({
@@ -143,13 +162,15 @@ const form = reactive({
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
     upstream_proxy_url: '',
+    test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
 
 const isDirty = computed(() => {
     return form.cch_rewrite_enabled !== originalConfig.cch_rewrite_enabled ||
            form.responses_prompt_cache_key_enabled !== originalConfig.responses_prompt_cache_key_enabled ||
            form.claude_code_tracking_rewrite_enabled !== originalConfig.claude_code_tracking_rewrite_enabled ||
-           form.upstream_proxy_url !== originalConfig.upstream_proxy_url;
+           form.upstream_proxy_url !== originalConfig.upstream_proxy_url ||
+           form.test_request_timeout_seconds !== originalConfig.test_request_timeout_seconds;
 });
 
 onMounted(() => {
@@ -171,6 +192,10 @@ async function loadConfig(): Promise<void> {
 
         form.upstream_proxy_url = config.upstream_proxy_url || '';
         originalConfig.upstream_proxy_url = config.upstream_proxy_url || '';
+
+        const timeoutMs = setRequestTimeoutMs(config.test_request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS);
+        form.test_request_timeout_seconds = Math.round(timeoutMs / 1000);
+        originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
         if (!appStore.version) {
             appStore.fetchVersion();
         }
@@ -184,6 +209,7 @@ function cancelChanges() {
     form.responses_prompt_cache_key_enabled = originalConfig.responses_prompt_cache_key_enabled;
     form.claude_code_tracking_rewrite_enabled = originalConfig.claude_code_tracking_rewrite_enabled;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
+    form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
 }
 
 async function doCheckUpdate() {
@@ -226,12 +252,15 @@ async function saveConfig() {
             responses_prompt_cache_key_enabled: form.responses_prompt_cache_key_enabled ? "true" : "false",
             claude_code_tracking_rewrite_enabled: form.claude_code_tracking_rewrite_enabled ? "true" : "false",
             upstream_proxy_url: form.upstream_proxy_url.trim(),
+            test_request_timeout_ms: String(Math.max(1, form.test_request_timeout_seconds) * 1000),
         });
         message.success('配置已保存');
         originalConfig.cch_rewrite_enabled = form.cch_rewrite_enabled;
         originalConfig.responses_prompt_cache_key_enabled = form.responses_prompt_cache_key_enabled;
         originalConfig.claude_code_tracking_rewrite_enabled = form.claude_code_tracking_rewrite_enabled;
         originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
+        originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
+        setRequestTimeoutMs(originalConfig.test_request_timeout_seconds * 1000);
         form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     } catch {
         // error handling is typically done by the request interceptor

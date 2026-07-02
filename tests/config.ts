@@ -140,7 +140,7 @@ const UPSTREAM_CONFIG = {
  */
 const TEST_OPTIONS = {
     cleanup: process.env.TEST_CLEANUP !== "false",
-    timeout: parseInt(process.env.TEST_TIMEOUT || "30000", 10),
+    timeout: parseInt(process.env.TEST_TIMEOUT || "120000", 10),
     verbose: process.env.TEST_VERBOSE === "true",
 };
 

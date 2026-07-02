@@ -185,6 +185,7 @@ async function fetchVendorModels(c: Context) {
         const response = await senderService.fetchWithProxy(modelsUrl, {
             method: "GET",
             headers,
+            signal: c.req.raw.signal,
         }, vendor);
 
         if (!response.ok) {

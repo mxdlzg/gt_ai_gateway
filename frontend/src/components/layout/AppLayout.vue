@@ -15,12 +15,23 @@ import { onMounted } from 'vue';
 import AppHeader from './AppHeader.vue';
 import AppSidebar from './AppSidebar.vue';
 import { useAuthStore } from '@/stores/auth';
+import { getConfig } from '@/api/config';
+import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
 
 const authStore = useAuthStore();
 
-onMounted(() => {
+onMounted(async () => {
     if (authStore.isAuthenticated && !authStore.userType) {
-        authStore.validateToken();
+        await authStore.validateToken();
+    }
+
+    if (authStore.isAuthenticated) {
+        try {
+            const config = await getConfig();
+            setRequestTimeoutMs(config.test_request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS);
+        } catch {
+            setRequestTimeoutMs(DEFAULT_REQUEST_TIMEOUT_MS);
+        }
     }
 });
 </script>

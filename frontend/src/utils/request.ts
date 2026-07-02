@@ -4,9 +4,19 @@ import { getAuthToken } from './authSession';
 import { notifyRequestError } from './requestFeedback';
 import { normalizeAxiosError } from './requestError';
 
+export const DEFAULT_REQUEST_TIMEOUT_MS = 120000;
+
+function normalizeRequestTimeoutMs(value: unknown): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return DEFAULT_REQUEST_TIMEOUT_MS;
+    }
+    return Math.floor(parsed);
+}
+
 const instance: AxiosInstance = axios.create({
     baseURL: import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? '/api' : ''),
-    timeout: 30000,
+    timeout: DEFAULT_REQUEST_TIMEOUT_MS,
     headers: {
         'Content-Type': 'application/json',
     },
@@ -22,6 +32,16 @@ export function setBaseURL(url: string) {
 
 export function getBaseURL(): string {
     return instance.defaults.baseURL as string || window.location.origin;
+}
+
+export function setRequestTimeoutMs(value: unknown): number {
+    const timeout = normalizeRequestTimeoutMs(value);
+    instance.defaults.timeout = timeout;
+    return timeout;
+}
+
+export function getRequestTimeoutMs(): number {
+    return normalizeRequestTimeoutMs(instance.defaults.timeout);
 }
 
 instance.interceptors.request.use(

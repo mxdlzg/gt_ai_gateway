@@ -266,6 +266,7 @@ async function testVendor(c: Context) {
             method: "POST",
             headers,
             body: upstreamBody,
+            signal: c.req.raw.signal,
         }, vendor);
         const duration = Date.now() - startTime;
         const responseText = await response.text();

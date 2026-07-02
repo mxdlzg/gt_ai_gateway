@@ -98,6 +98,21 @@ describe("Gateway - Model Enable Filter", () => {
         expect(response.body).toHaveProperty("choices");
     }, 30000);
 
+    it("should list only enabled models on OpenAI-compatible models endpoint", async () => {
+        const response = await requestHelper.get(
+            "/llm/v1/models",
+            normalToken,
+        );
+
+        expect(response.status).toBe(200);
+        expect(response.body.object).toBe("list");
+        expect(Array.isArray(response.body.data)).toBe(true);
+
+        const modelIds = response.body.data.map((model: any) => model.id);
+        expect(modelIds).toContain("enabled-model");
+        expect(modelIds).not.toContain("disabled-model");
+    });
+
     it("should reject request to model that does not exist", async () => {
         const chatRequest = mockHelper.generateOpenAIChatRequest({
             model: "non-existent-model",

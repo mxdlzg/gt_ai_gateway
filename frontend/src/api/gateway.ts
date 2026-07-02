@@ -2,6 +2,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import type { ApiTestRequest, StreamChunk } from '@/types/gateway';
 import { getAuthToken } from '@/utils/authSession';
 import { createHttpError, toAppRequestError } from '@/utils/requestError';
+import { getRequestTimeoutMs } from '@/utils/request';
 
 interface StreamCallbacks {
     onMessage?: (content: string) => void;
@@ -24,6 +25,18 @@ interface AnthropicMessageResponse {
 }
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
+
+function createTimeoutController(): { controller: AbortController; clear: () => void } {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => {
+        controller.abort(new Error(`请求超时 (${Math.round(getRequestTimeoutMs() / 1000)} 秒)`));
+    }, getRequestTimeoutMs());
+
+    return {
+        controller,
+        clear: () => window.clearTimeout(timeoutId),
+    };
+}
 
 async function parseErrorResponse(response: Response): Promise<unknown> {
     return response.json().catch(() => undefined);
@@ -56,6 +69,7 @@ export async function chatCompletions(
 
     if (!stream) {
         // 非流式请求
+        const timeout = createTimeoutController();
         try {
             const response = await fetch(`${API_BASE_URL}/llm/v1/chat/completions`, {
                 method: 'POST',
@@ -64,6 +78,7 @@ export async function chatCompletions(
                     'Authorization': token ? `Bearer ${token}` : '',
                 },
                 body: JSON.stringify(requestBody),
+                signal: timeout.controller.signal,
             });
 
             if (!response.ok) {
@@ -76,12 +91,15 @@ export async function chatCompletions(
             callbacks.onComplete?.();
         } catch (error) {
             callbacks.onError?.(toAppRequestError(error).message);
+        } finally {
+            timeout.clear();
         }
         return;
     }
 
     // 流式请求
     let fullContent = '';
+    const timeout = createTimeoutController();
 
     try {
         await fetchEventSource(`${API_BASE_URL}/llm/v1/chat/completions`, {
@@ -91,6 +109,7 @@ export async function chatCompletions(
                 'Authorization': token ? `Bearer ${token}` : '',
             },
             body: JSON.stringify(requestBody),
+            signal: timeout.controller.signal,
             async onopen(response) {
                 await ensureOk(response, `HTTP ${response.status}`);
                 return Promise.resolve();
@@ -123,6 +142,8 @@ export async function chatCompletions(
         });
     } catch (error) {
         callbacks.onError?.(toAppRequestError(error).message);
+    } finally {
+        timeout.clear();
     }
 }
 
@@ -158,6 +179,7 @@ export async function anthropicMessages(
 
     if (!stream) {
         // 非流式请求
+        const timeout = createTimeoutController();
         try {
             const response = await fetch(`${API_BASE_URL}/llm/v1/messages`, {
                 method: 'POST',
@@ -166,6 +188,7 @@ export async function anthropicMessages(
                     'Authorization': token ? `Bearer ${token}` : '',
                 },
                 body: JSON.stringify(requestBody),
+                signal: timeout.controller.signal,
             });
 
             if (!response.ok) {
@@ -178,12 +201,15 @@ export async function anthropicMessages(
             callbacks.onComplete?.();
         } catch (error) {
             callbacks.onError?.(toAppRequestError(error).message);
+        } finally {
+            timeout.clear();
         }
         return;
     }
 
     // 流式请求
     let fullContent = '';
+    const timeout = createTimeoutController();
 
     try {
         await fetchEventSource(`${API_BASE_URL}/llm/v1/messages`, {
@@ -193,6 +219,7 @@ export async function anthropicMessages(
                 'Authorization': token ? `Bearer ${token}` : '',
             },
             body: JSON.stringify(requestBody),
+            signal: timeout.controller.signal,
             async onopen(response) {
                 await ensureOk(response, `HTTP ${response.status}`);
                 return Promise.resolve();
@@ -225,6 +252,8 @@ export async function anthropicMessages(
         });
     } catch (error) {
         callbacks.onError?.(toAppRequestError(error).message);
+    } finally {
+        timeout.clear();
     }
 }
 

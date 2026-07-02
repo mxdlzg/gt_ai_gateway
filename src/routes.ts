@@ -150,6 +150,7 @@ app.get("/stats/dashboard.json", authMiddleware.requireAdmin, statsController.da
 app.get("/stats/recent.json", authMiddleware.requireAdmin, statsController.recentRecords);
 
 // AI endpoints (no auth middleware)
+app.get("/llm/v1/models", gatewayController.listModels);
 app.post("/llm/v1/chat/completions", gatewayController.chatCompletions);
 app.post("/llm/v1/messages", gatewayController.anthropicMessages);
 app.post("/llm/v1/responses", gatewayController.responsesApi);
