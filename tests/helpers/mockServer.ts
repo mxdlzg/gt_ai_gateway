@@ -1064,7 +1064,9 @@ function handleAnthropicToolUseStreamResponse(
 /**
  * Handle GET /v1/models - returns a fixed list of mock models
  */
-function handleModelsList(_req: IncomingMessage, res: ServerResponse): void {
+function handleModelsList(req: IncomingMessage, res: ServerResponse): void {
+    captureRequest(req, "", null);
+
     const response = {
         object: "list",
         data: [

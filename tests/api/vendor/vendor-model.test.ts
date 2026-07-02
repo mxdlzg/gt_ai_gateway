@@ -2,8 +2,9 @@ import { describe, it, expect, beforeAll } from "vitest";
 import requestHelper from "../../helpers/requestHelper";
 import vendorFixtures from "../../fixtures/vendorFixtures";
 import dbHelper from "../../helpers/dbHelper";
-import mockServer from "../../helpers/mockServer";
+import config from "../../config";
 import { setupAdminUser } from "../../globalSetup";
+import { fetch } from "undici";
 
 /**
  * Vendor Model & Preset URLs Tests
@@ -100,6 +101,7 @@ describe("Vendor Model API", () => {
             expect(response.body).toHaveProperty("id");
             expect(response.body.vendor_id).toBe(vendorId);
             expect(response.body.model_id).toBe("gpt-4o");
+            expect(response.body.header_fingerprint).toBe("");
             expect(response.body).toHaveProperty("created_at");
             expect(response.body).toHaveProperty("updated_at");
 
@@ -132,6 +134,21 @@ describe("Vendor Model API", () => {
             const modelIds = listResponse.body.map((m: any) => m.model_id);
             expect(modelIds).toContain("gpt-4o");
             expect(modelIds).toContain("gpt-4o-mini");
+        });
+
+        it("should add a vendor model with header fingerprint", async () => {
+            const response = await requestHelper.post(
+                `/vendor/${vendorId}/model/add.json`,
+                {
+                    model_id: "gpt-fingerprint-model",
+                    header_fingerprint: "codex_cli",
+                },
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.model_id).toBe("gpt-fingerprint-model");
+            expect(response.body.header_fingerprint).toBe("codex_cli");
         });
 
         it("should return 409 for duplicate model_id", async () => {
@@ -257,6 +274,30 @@ describe("Vendor Model API", () => {
         });
     });
 
+    describe("PUT /vendor/:id/model/:modelId", () => {
+        it("should update allowed formats and header fingerprint", async () => {
+            const addRes = await requestHelper.post(
+                `/vendor/${vendorId}/model/add.json`,
+                { model_id: "update-fingerprint-model" },
+                adminToken,
+            );
+            const modelId = addRes.body.id;
+
+            const response = await requestHelper.put(
+                `/vendor/${vendorId}/model/${modelId}`,
+                {
+                    allowed_formats: ["openai"],
+                    header_fingerprint: "codex_cli",
+                },
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.allowed_formats).toEqual(["openai"]);
+            expect(response.body.header_fingerprint).toBe("codex_cli");
+        });
+    });
+
     describe("DELETE /vendor/:id/model/:modelId", () => {
         let modelToDeleteId: number;
 
@@ -374,9 +415,15 @@ describe("Vendor Model API", () => {
             expect(response.body.models).toContain("mock-gpt-4o");
             expect(response.body.models).not.toContain("mock-dall-e-3");
 
-            const headers = mockServer.getReceivedHeaders();
-            expect(headers.authorization).toBeTruthy();
-            expect(headers["x-api-key"]).toBeTruthy();
+            const requestLogResponse = await fetch(`${config.UPSTREAM_CONFIG.mock.url}/_test/requests`);
+            const requests = await requestLogResponse.json() as any[];
+            const modelListRequest = requests
+                .slice()
+                .reverse()
+                .find((item: any) => item.method === "GET" && String(item.url).includes("/v1/models"));
+
+            expect(modelListRequest?.headers.authorization).toBeTruthy();
+            expect(modelListRequest?.headers["x-api-key"]).toBeTruthy();
         });
     });
 });

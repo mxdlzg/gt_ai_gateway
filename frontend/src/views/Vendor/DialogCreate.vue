@@ -38,6 +38,13 @@
                     placeholder="留空使用全局代理，例如：http://127.0.0.1:7890"
                 />
             </a-form-item>
+            <a-form-item label="请求指纹">
+                <a-select
+                    v-model:value="formState.header_fingerprint"
+                    :options="headerFingerprint.vendorOptions"
+                    placeholder="请选择请求指纹"
+                />
+            </a-form-item>
             <a-form-item label="URLs 配置（可选）">
                 <!-- 查看模式：合并展示 preset + 用户自定义 -->
                 <template v-if="urlsMode === 'view'">
@@ -120,9 +127,10 @@ import { ref, reactive, computed, watch } from 'vue';
 import type { FormInstance } from 'ant-design-vue/es';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons-vue';
 import { createVendor } from '@/api/vendor';
-import type { CreateVendorRequest, Vendor, VendorHeaders, VendorType, VendorUrls } from '@/types/vendor';
+import type { CreateVendorRequest, HeaderFingerprintValue, Vendor, VendorHeaders, VendorType, VendorUrls } from '@/types/vendor';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
 import { useVendorPresets } from '@/composables/useVendorPresets';
+import headerFingerprint from '@/utils/headerFingerprint';
 
 const emit = defineEmits<{
     success: [vendor: Vendor];
@@ -145,6 +153,7 @@ const formState = reactive({
     name: '',
     token: '',
     proxy_url: '',
+    header_fingerprint: 'auto' as HeaderFingerprintValue,
 });
 
 const urlsMode = ref<'view' | 'edit'>('view');
@@ -189,6 +198,7 @@ function open() {
     formState.name = '';
     formState.token = '';
     formState.proxy_url = '';
+    formState.header_fingerprint = 'auto';
     urlsForm.splice(0, urlsForm.length);
     headersForm.splice(0, headersForm.length);
     urlsMode.value = 'view';
@@ -239,6 +249,7 @@ async function handleOk() {
             name: formState.name,
             token: formState.token,
             proxy_url: formState.proxy_url.trim(),
+            header_fingerprint: formState.header_fingerprint,
         };
 
         // 只提交用户自定义的 URLs，后端对未定义的 key 回退到 preset

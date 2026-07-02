@@ -10,12 +10,15 @@ export interface VendorHeaders {
     [key: string]: string;
 }
 
+export type HeaderFingerprintValue = '' | 'auto' | 'none' | 'claude_cli' | 'codex_cli';
+
 export interface Vendor extends BaseEntity {
     type: VendorType;
     name: string;
     token: string;
     urls: VendorUrls;
     headers: VendorHeaders;
+    header_fingerprint: HeaderFingerprintValue;
     proxy_url: string;
     model_count: number;
 }
@@ -26,6 +29,7 @@ export interface CreateVendorRequest {
     token: string;
     urls?: VendorUrls;
     headers?: VendorHeaders;
+    header_fingerprint?: HeaderFingerprintValue;
     proxy_url?: string;
 }
 
@@ -35,6 +39,7 @@ export interface UpdateVendorRequest {
     token?: string;
     urls?: VendorUrls;
     headers?: VendorHeaders;
+    header_fingerprint?: HeaderFingerprintValue;
     proxy_url?: string;
 }
 
@@ -47,6 +52,7 @@ export interface VendorModel {
     vendor_id: number;
     model_id: string;
     allowed_formats: string[] | null;
+    header_fingerprint: HeaderFingerprintValue;
     created_at: string;
     updated_at: string;
 }

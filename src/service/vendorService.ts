@@ -1,5 +1,6 @@
 import { SgVendor } from "../model/sgVendor";
 import { ApiFormat } from "../constants";
+import headerFingerprintService from "./headerFingerprintService";
 
 
 async function getVendorByName(name: string): Promise<SgVendor | null> {
@@ -13,7 +14,7 @@ async function getVendorByName(name: string): Promise<SgVendor | null> {
 
 async function updateVendor(
     vendorId: number,
-    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string>; proxy_url?: string },
+    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string>; header_fingerprint?: string; proxy_url?: string },
 ): Promise<SgVendor | null> {
     const vendor = await SgVendor.query().find(vendorId);
 
@@ -34,6 +35,10 @@ async function updateVendor(
 
     if (data.headers !== undefined) {
         updateData.headers = JSON.stringify(data.headers);
+    }
+
+    if (data.header_fingerprint !== undefined) {
+        updateData.header_fingerprint = headerFingerprintService.normalizeVendorSetting(data.header_fingerprint);
     }
 
     if (data.proxy_url !== undefined) {

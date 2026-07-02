@@ -42,6 +42,11 @@
                             </a-tag>
                         </a-space>
                     </template>
+                    <template v-else-if="column.key === 'header_fingerprint'">
+                        <a-tag :color="headerFingerprint.getTagColor(record.header_fingerprint)">
+                            {{ headerFingerprint.getLabel(record.header_fingerprint) }}
+                        </a-tag>
+                    </template>
                     <template v-else-if="column.key === 'created_at'">
                         {{ formatDate(record.created_at) }}
                     </template>
@@ -90,13 +95,20 @@
                 <a-form-item v-if="manualFormatsMode === 'manual'" label="指定协议">
                     <a-checkbox-group v-model:value="manualFormatsSelected" :options="formatOptions" />
                 </a-form-item>
+                <a-form-item label="请求指纹">
+                    <a-select
+                        v-model:value="manualHeaderFingerprint"
+                        :options="headerFingerprint.modelOptions"
+                        placeholder="请选择请求指纹"
+                    />
+                </a-form-item>
             </a-form>
         </a-modal>
 
-        <!-- 编辑协议限制弹窗 -->
+        <!-- 编辑模型配置弹窗 -->
         <a-modal
             v-model:open="editFormatsVisible"
-            title="编辑支持协议"
+            title="编辑模型配置"
             :confirm-loading="editFormatsLoading"
             @ok="handleEditFormatsConfirm"
             @cancel="editFormatsVisible = false"
@@ -110,6 +122,13 @@
                 </a-form-item>
                 <a-form-item v-if="editFormatsMode === 'manual'" label="指定协议">
                     <a-checkbox-group v-model:value="editFormatsSelected" :options="formatOptions" />
+                </a-form-item>
+                <a-form-item label="请求指纹">
+                    <a-select
+                        v-model:value="editHeaderFingerprint"
+                        :options="headerFingerprint.modelOptions"
+                        placeholder="请选择请求指纹"
+                    />
                 </a-form-item>
             </a-form>
         </a-modal>
@@ -166,9 +185,10 @@ import { Modal } from 'ant-design-vue/es';
 import { getVendor, listVendorModels, fetchVendorModels, syncVendorModels, addVendorModel, updateVendorModel, deleteVendorModel } from '@/api/vendor';
 import { formatDate } from '@/utils/format';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
-import type { Vendor, VendorModel } from '@/types/vendor';
+import type { HeaderFingerprintValue, Vendor, VendorModel } from '@/types/vendor';
 import type { VendorModelFetchSource } from '@/api/vendor';
 import DialogTest from './DialogTest.vue';
+import headerFingerprint from '@/utils/headerFingerprint';
 
 const route = useRoute();
 const router = useRouter();
@@ -191,6 +211,7 @@ const fetchSourceOptions = [
 const manualModelId = ref('');
 const manualFormatsMode = ref<'auto' | 'manual'>('auto');
 const manualFormatsSelected = ref<string[]>([]);
+const manualHeaderFingerprint = ref<HeaderFingerprintValue>('');
 const addLoading = ref(false);
 const addModalVisible = ref(false);
 
@@ -219,10 +240,12 @@ const editFormatsLoading = ref(false);
 const editFormatsRecord = ref<VendorModel | null>(null);
 const editFormatsMode = ref<'auto' | 'manual'>('auto');
 const editFormatsSelected = ref<string[]>([]);
+const editHeaderFingerprint = ref<HeaderFingerprintValue>('');
 
 const columns: TableColumnsType<VendorModel> = [
     { title: 'Model ID', key: 'model_id', dataIndex: 'model_id' },
     { title: '支持协议', key: 'allowed_formats', width: 180 },
+    { title: '请求指纹', key: 'header_fingerprint', width: 130 },
     { title: '添加时间', key: 'created_at', dataIndex: 'created_at', width: 180 },
     { title: '操作', key: 'action', width: 140, fixed: 'right' as const },
 ];
@@ -270,7 +293,7 @@ async function handleManualAdd() {
         const allowedFormats = manualFormatsMode.value === 'manual' && manualFormatsSelected.value.length > 0
             ? manualFormatsSelected.value
             : null;
-        await addVendorModel(vendorId, id, allowedFormats);
+        await addVendorModel(vendorId, id, allowedFormats, manualHeaderFingerprint.value);
         notifySuccess('添加成功');
         resetManualAdd();
         await loadModels();
@@ -286,6 +309,7 @@ function resetManualAdd() {
     manualModelId.value = '';
     manualFormatsMode.value = 'auto';
     manualFormatsSelected.value = [];
+    manualHeaderFingerprint.value = '';
 }
 
 
@@ -363,6 +387,7 @@ function handleEditFormats(record: VendorModel) {
         editFormatsMode.value = 'auto';
         editFormatsSelected.value = [];
     }
+    editHeaderFingerprint.value = record.header_fingerprint || '';
     editFormatsVisible.value = true;
 }
 
@@ -372,7 +397,12 @@ async function handleEditFormatsConfirm() {
     try {
         const newFormats = editFormatsMode.value === 'manual' && editFormatsSelected.value.length > 0
             ? editFormatsSelected.value : null;
-        const updated = await updateVendorModel(vendorId, editFormatsRecord.value.id, newFormats);
+        const updated = await updateVendorModel(
+            vendorId,
+            editFormatsRecord.value.id,
+            newFormats,
+            editHeaderFingerprint.value,
+        );
         const idx = models.value.findIndex(m => m.id === updated.id);
         if (idx !== -1) models.value[idx] = updated;
         notifySuccess('已更新');

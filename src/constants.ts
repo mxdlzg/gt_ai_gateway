@@ -29,6 +29,13 @@ export enum ApiFormat {
     RESPONSES = "responses",
 }
 
+export enum HeaderFingerprint {
+    AUTO = "auto",
+    NONE = "none",
+    CLAUDE_CLI = "claude_cli",
+    CODEX_CLI = "codex_cli",
+}
+
 export enum ClientName {
     CLAUDE_CODE = "claude-code",
     CODEX = "codex",

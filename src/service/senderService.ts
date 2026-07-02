@@ -8,7 +8,7 @@ import { SgVendorModel } from "../model/sgVendorModel";
 import SgModelProviderRoute from "../model/sgModelProviderRoute";
 import recordService from "./recordService";
 import ormService from "./ormService";
-import { SgRecordStatus, FailedCode, ApiFormat } from "../constants";
+import { SgRecordStatus, FailedCode, ApiFormat, HeaderFingerprint } from "../constants";
 import sseAccumulator from "../util/sseAccumulator";
 import { SgRecord, SgRecordUsage } from "../model/sgRecord";
 import { createWriteStream, WriteStream } from "fs";
@@ -25,6 +25,7 @@ import sseEvent from "../util/sseEvent";
 import configService, { ConfigKey } from "./configService";
 import hostService from "./hostService";
 import { runInBackground } from "../util/runInBackground";
+import headerFingerprintService from "./headerFingerprintService";
 
 function calculateCost(
     model: SgModel,
@@ -115,10 +116,18 @@ function applyVendorHeaders(headers: Headers, vendor: SgVendor): void {
 }
 
 
+function applyHeaderMap(headers: Headers, headerMap: Record<string, string>): void {
+    for (const [key, value] of Object.entries(headerMap)) {
+        headers.set(key, value);
+    }
+}
+
+
 function buildUpstreamHeaders(
     requestHeaders: Headers | null,
     vendor: SgVendor,
     upstreamFormat: ApiFormat,
+    vendorModel: SgVendorModel | null = null,
 ): Headers {
     const finalHeaders = new Headers();
 
@@ -138,6 +147,12 @@ function buildUpstreamHeaders(
     }
 
     finalHeaders.set("Content-Type", "application/json");
+    const fingerprint = headerFingerprintService.resolveFingerprint(vendor, vendorModel, upstreamFormat);
+    if (fingerprint === HeaderFingerprint.NONE) {
+        finalHeaders.set("User-Agent", "");
+    } else {
+        applyHeaderMap(finalHeaders, headerFingerprintService.buildHeaders(vendor, vendorModel, upstreamFormat));
+    }
     applyVendorHeaders(finalHeaders, vendor);
 
     return finalHeaders;
@@ -1088,7 +1103,7 @@ async function sendRequest(
     // 2. 构建上游请求 headers，过滤掉 Cloudflare 注入的 cf- 前缀 header
     // 并且必须排除客户端自带的鉴权 header，避免泄露或导致合并错误
     // 同时排除浏览器相关的元数据 header，避免上游校验失败
-    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, vendor, upstreamFormat);
+    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, vendor, upstreamFormat, selectedRoute.vendorModel);
     await recordService.update(record.id, {
         status: SgRecordStatus.PROCESSING,
         start_at: new Date(),

@@ -90,13 +90,45 @@ describe('Vendor Test API', () => {
         const response = await requestHelper.post(`/vendor/${vendor.body.id}/test.json`, {
             format: 'anthropic',
             model: 'claude-3-opus'
-        }, rootToken);
+        }, rootToken, {
+            'user-agent': 'vendor-test-client/1.0'
+        });
 
         expect(response.status).toBe(200);
         expect(response.body.success).toBe(true);
         expect(response.body).toHaveProperty('status', 200);
         expect(response.body.request_body.messages[0].content).toContain('连接测试成功');
         expect(response.body.request_body.max_tokens).toBe(64);
+        expect(response.body.request_headers['user-agent']).toBe('vendor-test-client/1.0');
+        expect(response.body.request_headers['anthropic-beta']).toBeUndefined();
+    });
+
+    it('should apply model-level fingerprint override in vendor connectivity test', async () => {
+        const vendor = await requestHelper.post('/vendor/create.json', {
+            type: 'other',
+            name: 'Model Fingerprint Vendor',
+            token: 'test-token',
+            urls: {
+                anthropic: 'http://localhost:9999/v1/messages'
+            },
+            header_fingerprint: 'claude_cli'
+        }, rootToken);
+
+        await requestHelper.post(`/vendor/${vendor.body.id}/model/add.json`, {
+            model_id: 'claude-with-codex-fingerprint',
+            header_fingerprint: 'codex_cli'
+        }, rootToken);
+
+        const response = await requestHelper.post(`/vendor/${vendor.body.id}/test.json`, {
+            format: 'anthropic',
+            model: 'claude-with-codex-fingerprint'
+        }, rootToken);
+
+        expect(response.status).toBe(200);
+        expect(response.body.success).toBe(true);
+        expect(response.body.request_headers['user-agent']).toContain('codex_cli_rs/');
+        expect(response.body.request_headers.originator).toBe('codex_cli_rs');
+        expect(response.body.request_headers['anthropic-beta']).toBeUndefined();
     });
 
     it('should return failure for invalid URL', async () => {

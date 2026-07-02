@@ -19,6 +19,11 @@
                 <a-descriptions-item label="代理地址">
                     {{ vendor.proxy_url || '使用全局配置' }}
                 </a-descriptions-item>
+                <a-descriptions-item label="请求指纹">
+                    <a-tag :color="headerFingerprint.getTagColor(vendor.header_fingerprint)">
+                        {{ headerFingerprint.getLabel(vendor.header_fingerprint) }}
+                    </a-tag>
+                </a-descriptions-item>
                 <a-descriptions-item label="URLs">
                     <div v-for="item in getMergedUrls(vendor)" :key="item.key" class="url-item">
                         <strong>{{ item.key }}:</strong> {{ item.url }}
@@ -54,6 +59,7 @@ import { formatDate } from '@/utils/format';
 import TokenDisplay from '@/components/common/TokenDisplay.vue';
 import type { Vendor, VendorType } from '@/types/vendor';
 import { useVendorPresets } from '@/composables/useVendorPresets';
+import headerFingerprint from '@/utils/headerFingerprint';
 
 const route = useRoute();
 const router = useRouter();

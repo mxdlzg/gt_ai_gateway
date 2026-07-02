@@ -38,6 +38,13 @@
                     placeholder="留空使用全局代理，例如：http://127.0.0.1:7890"
                 />
             </a-form-item>
+            <a-form-item label="请求指纹">
+                <a-select
+                    v-model:value="formState.header_fingerprint"
+                    :options="headerFingerprint.vendorOptions"
+                    placeholder="请选择请求指纹"
+                />
+            </a-form-item>
             <a-form-item label="URLs 配置">
                 <!-- 查看模式：合并展示 preset + 用户自定义 -->
                 <template v-if="urlsMode === 'view'">
@@ -120,9 +127,10 @@ import { ref, reactive, computed, watch } from 'vue';
 import type { FormInstance } from 'ant-design-vue/es';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons-vue';
 import { updateVendor } from '@/api/vendor';
-import type { UpdateVendorRequest, Vendor, VendorHeaders, VendorType, VendorUrls } from '@/types/vendor';
+import type { HeaderFingerprintValue, UpdateVendorRequest, Vendor, VendorHeaders, VendorType, VendorUrls } from '@/types/vendor';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
 import { useVendorPresets } from '@/composables/useVendorPresets';
+import headerFingerprint from '@/utils/headerFingerprint';
 
 const emit = defineEmits<{
     success: [vendor: Vendor];
@@ -147,6 +155,7 @@ const formState = reactive({
     name: '',
     token: '',
     proxy_url: '',
+    header_fingerprint: 'auto' as HeaderFingerprintValue,
 });
 
 const urlsMode = ref<'view' | 'edit'>('view');
@@ -191,6 +200,7 @@ function open(vendor: Vendor) {
     formState.name = vendor.name;
     formState.token = vendor.token;
     formState.proxy_url = vendor.proxy_url || '';
+    formState.header_fingerprint = vendor.header_fingerprint || 'auto';
 
     // 加载已保存的自定义 URLs
     urlsForm.splice(0, urlsForm.length);
@@ -255,6 +265,7 @@ async function handleOk() {
             urls,
             headers: collectHeaders(),
             proxy_url: formState.proxy_url.trim(),
+            header_fingerprint: formState.header_fingerprint,
         };
 
         loading.value = true;

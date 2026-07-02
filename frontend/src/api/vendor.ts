@@ -1,7 +1,7 @@
 import request from '../utils/request';
 import type { ListResult } from '../types';
 import type { Vendor, CreateVendorRequest, UpdateVendorRequest } from '../types/vendor';
-import type { VendorQuery } from '../types/vendor';
+import type { HeaderFingerprintValue, VendorQuery } from '../types/vendor';
 
 export interface VendorTestResponse {
     success: boolean;
@@ -66,12 +66,32 @@ export async function syncVendorModels(vendorId: number, modelIds: string[]): Pr
     return request.post(`/vendor/${vendorId}/model/sync.json`, { model_ids: modelIds });
 }
 
-export async function addVendorModel(vendorId: number, modelId: string, allowedFormats?: string[] | null): Promise<import('../types/vendor').VendorModel> {
-    return request.post(`/vendor/${vendorId}/model/add.json`, { model_id: modelId, allowed_formats: allowedFormats });
+export async function addVendorModel(
+    vendorId: number,
+    modelId: string,
+    allowedFormats?: string[] | null,
+    headerFingerprint: HeaderFingerprintValue = '',
+): Promise<import('../types/vendor').VendorModel> {
+    return request.post(`/vendor/${vendorId}/model/add.json`, {
+        model_id: modelId,
+        allowed_formats: allowedFormats,
+        header_fingerprint: headerFingerprint,
+    });
 }
 
-export async function updateVendorModel(vendorId: number, id: number, allowedFormats: string[] | null): Promise<import('../types/vendor').VendorModel> {
-    return request.put(`/vendor/${vendorId}/model/${id}`, { allowed_formats: allowedFormats });
+export async function updateVendorModel(
+    vendorId: number,
+    id: number,
+    allowedFormats: string[] | null,
+    headerFingerprint?: HeaderFingerprintValue,
+): Promise<import('../types/vendor').VendorModel> {
+    const payload: { allowed_formats: string[] | null; header_fingerprint?: HeaderFingerprintValue } = {
+        allowed_formats: allowedFormats,
+    };
+    if (headerFingerprint !== undefined) {
+        payload.header_fingerprint = headerFingerprint;
+    }
+    return request.put(`/vendor/${vendorId}/model/${id}`, payload);
 }
 
 export async function deleteVendorModel(vendorId: number, id: number): Promise<{ success: boolean }> {

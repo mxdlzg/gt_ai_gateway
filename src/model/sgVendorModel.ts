@@ -9,6 +9,7 @@ class SgVendorModel extends Model {
     vendor_id!: number;
     model_id!: string;
     allowed_formats!: string | null;
+    header_fingerprint!: string;
 
     created_at!: Date;
     updated_at!: Date;
@@ -25,6 +26,12 @@ class SgVendorModel extends Model {
     getSupportedFormats(): ApiFormat[] | null {
         return this.getAllowedFormats();
     }
+
+
+    getHeaderFingerprint(): string {
+        return (this.header_fingerprint ?? "").trim();
+    }
+
 
     [inspect.custom](depth: number, options: InspectOptions) {
         return JSON.stringify(this.toData(), null, 2);

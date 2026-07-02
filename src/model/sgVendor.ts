@@ -14,6 +14,7 @@ class SgVendor extends Model {
     token!: string;
     urls!: string;  // JSON string
     headers!: string;  // JSON string
+    header_fingerprint!: string;
     proxy_url!: string;
 
     created_at!: Date;
@@ -54,6 +55,11 @@ class SgVendor extends Model {
 
     getProxyUrl(): string {
         return (this.proxy_url ?? "").trim();
+    }
+
+
+    getHeaderFingerprint(): string {
+        return (this.header_fingerprint ?? "auto").trim() || "auto";
     }
 
 

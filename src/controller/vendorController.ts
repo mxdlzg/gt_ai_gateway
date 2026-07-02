@@ -1,10 +1,12 @@
 import { Context } from "hono";
 import { SgVendor } from "../model/sgVendor";
 import { SgModel } from "../model/sgModel";
+import { SgVendorModel } from "../model/sgVendorModel";
 import vendorService from "../service/vendorService";
 import vendorDefaultUrls from "../service/vendorDefaultUrls";
 import ormService from "../service/ormService";
 import senderService from "../service/senderService";
+import headerFingerprintService from "../service/headerFingerprintService";
 import customError from "../util/customError";
 import { ApiFormat } from "../constants";
 import { createListResponse, parsePaginationQuery } from "../util/pagination";
@@ -21,6 +23,7 @@ function formatVendor(vendor: SgVendor, modelCount = 0) {
         token: vendor.token,
         urls: vendor.getUrls(),
         headers: vendor.getHeaders(),
+        header_fingerprint: vendor.getHeaderFingerprint(),
         proxy_url: vendor.getProxyUrl(),
         model_count: modelCount,
         created_at: vendor.created_at,
@@ -102,7 +105,7 @@ async function getVendorsByIds(c: Context) {
 
 async function createVendor(c: Context) {
     const body = await c.req.json();
-    const { type, name, token, urls, headers, proxy_url } = body;
+    const { type, name, token, urls, headers, header_fingerprint, proxy_url } = body;
 
     // Validation - 不验证 urls，允许为空
     if (!type || !name || !token) {
@@ -115,6 +118,7 @@ async function createVendor(c: Context) {
         token,
         urls: urls ? JSON.stringify(urls) : "{}",
         headers: headers ? JSON.stringify(headers) : "{}",
+        header_fingerprint: headerFingerprintService.normalizeVendorSetting(header_fingerprint),
         proxy_url: typeof proxy_url === "string" ? proxy_url.trim() : "",
     });
 
@@ -131,7 +135,7 @@ async function updateVendor(c: Context) {
     }
 
     const body = await c.req.json();
-    const { type, name, token, urls, headers, proxy_url } = body;
+    const { type, name, token, urls, headers, header_fingerprint, proxy_url } = body;
 
     const updatedVendor = await vendorService.updateVendor(vendorId, {
         type,
@@ -139,6 +143,7 @@ async function updateVendor(c: Context) {
         token,
         urls,
         headers,
+        header_fingerprint,
         proxy_url,
     });
 
@@ -214,9 +219,16 @@ async function testVendor(c: Context) {
     let requestFormat: ApiFormat = format;
     let convertedFrom: string | undefined;
     let convertedTo: string | undefined;
+    const vendorModel = typeof model === "string"
+        ? await SgVendorModel.query()
+            .where("vendor_id", vendorId)
+            .where("model_id", model)
+            .first()
+        : null;
 
     if (auto_convert) {
-        const upstreamFormat = senderService.resolveUpstreamFormat(format, vendor.getSupportedFormats());
+        const supportedFormats = vendorModel?.getSupportedFormats() ?? vendor.getSupportedFormats();
+        const upstreamFormat = senderService.resolveUpstreamFormat(format, supportedFormats);
         if (upstreamFormat !== format) {
             convertedFrom = format;
             convertedTo = upstreamFormat;
@@ -225,7 +237,7 @@ async function testVendor(c: Context) {
     }
 
     const url = vendor.getUrlByFormat(requestFormat);
-    const headers = senderService.buildUpstreamHeaders(null, vendor, requestFormat);
+    const headers = senderService.buildUpstreamHeaders(c.req.raw.headers, vendor, requestFormat, vendorModel);
     let upstreamBody = "";
 
     if (requestFormat === ApiFormat.ANTHROPIC) {

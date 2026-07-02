@@ -4,6 +4,7 @@ import { SgVendorModel } from "../model/sgVendorModel";
 import customError from "../util/customError";
 import { ApiFormat } from "../constants";
 import senderService from "../service/senderService";
+import headerFingerprintService from "../service/headerFingerprintService";
 
 type FetchModelSource = "auto" | "openai" | "anthropic";
 
@@ -41,6 +42,7 @@ function serializeVendorModel(m: SgVendorModel) {
     return {
         ...m.toData(),
         allowed_formats: m.getAllowedFormats(),
+        header_fingerprint: m.getHeaderFingerprint(),
     };
 }
 
@@ -115,9 +117,9 @@ function buildModelsUrl(vendor: SgVendor, source: FetchModelSource): string {
 }
 
 
-function buildModelFetchHeaders(vendor: SgVendor, source: FetchModelSource): Headers {
+function buildModelFetchHeaders(vendor: SgVendor, source: FetchModelSource, requestHeaders: Headers | null): Headers {
     const requestFormat = source === "anthropic" ? ApiFormat.ANTHROPIC : ApiFormat.OPENAI;
-    const headers = senderService.buildUpstreamHeaders(null, vendor, requestFormat);
+    const headers = senderService.buildUpstreamHeaders(requestHeaders, vendor, requestFormat);
     const bearerToken = vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`;
 
     // Model list endpoints are not as consistently protocol-shaped as chat endpoints.
@@ -179,7 +181,7 @@ async function fetchVendorModels(c: Context) {
 
     const source = resolveFetchModelSource(vendor, c.req.query("source"));
     const modelsUrl = buildModelsUrl(vendor, source);
-    const headers = buildModelFetchHeaders(vendor, source);
+    const headers = buildModelFetchHeaders(vendor, source, c.req.raw.headers);
 
     try {
         const response = await senderService.fetchWithProxy(modelsUrl, {
@@ -260,7 +262,7 @@ async function addVendorModel(c: Context) {
     }
 
     const body = await c.req.json();
-    const { model_id, allowed_formats } = body;
+    const { model_id, allowed_formats, header_fingerprint } = body;
 
     if (!model_id || typeof model_id !== "string" || !model_id.trim()) {
         throw new customError.AppError("model_id is required");
@@ -288,6 +290,7 @@ async function addVendorModel(c: Context) {
         vendor_id: vendorId,
         model_id: trimmed,
         allowed_formats: allowedFormatsJson,
+        header_fingerprint: headerFingerprintService.normalizeModelSetting(header_fingerprint),
     });
 
     return c.json(serializeVendorModel(record));
@@ -330,7 +333,7 @@ async function updateVendorModel(c: Context) {
     }
 
     const body = await c.req.json();
-    const { allowed_formats } = body;
+    const { allowed_formats, header_fingerprint } = body;
 
     let allowedFormatsJson: string | null = null;
     if (Array.isArray(allowed_formats) && allowed_formats.length > 0) {
@@ -339,7 +342,14 @@ async function updateVendorModel(c: Context) {
         allowedFormatsJson = filtered.length > 0 ? JSON.stringify(filtered) : null;
     }
 
-    await SgVendorModel.query().where("id", recordId).update({ allowed_formats: allowedFormatsJson });
+    const updateData: Record<string, string | null> = {
+        allowed_formats: allowedFormatsJson,
+    };
+    if (header_fingerprint !== undefined) {
+        updateData.header_fingerprint = headerFingerprintService.normalizeModelSetting(header_fingerprint);
+    }
+
+    await SgVendorModel.query().where("id", recordId).update(updateData);
 
     const updated = await SgVendorModel.query().find(recordId);
     return c.json(serializeVendorModel(updated!));

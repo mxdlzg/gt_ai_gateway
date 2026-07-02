@@ -32,6 +32,7 @@ describe("Vendor API (Positive)", () => {
             expect(response.body.token).toBe(vendorData.token);
             expect(response.body.urls).toEqual(vendorData.urls);
             expect(response.body.headers).toEqual({});
+            expect(response.body.header_fingerprint).toBe("auto");
             expect(response.body).toHaveProperty("created_at");
             expect(response.body).toHaveProperty("updated_at");
 
@@ -124,6 +125,7 @@ describe("Vendor API (Positive)", () => {
             expect(vendor).toHaveProperty("type");
             expect(vendor).toHaveProperty("urls");
             expect(vendor).toHaveProperty("headers");
+            expect(vendor).toHaveProperty("header_fingerprint");
             expect(vendor).toHaveProperty("name");
             expect(vendor).toHaveProperty("token");
             expect(vendor).toHaveProperty("model_count");
@@ -186,6 +188,7 @@ describe("Vendor API (Positive)", () => {
             expect(response.body).toHaveProperty("type");
             expect(response.body).toHaveProperty("urls");
             expect(response.body).toHaveProperty("headers");
+            expect(response.body).toHaveProperty("header_fingerprint");
             expect(response.body).toHaveProperty("name");
             expect(response.body).toHaveProperty("token");
             expect(response.body).toHaveProperty("created_at");
@@ -282,6 +285,20 @@ describe("Vendor API (Positive)", () => {
 
             expect(response.status).toBe(200);
             expect(response.body.headers).toEqual(updateData.headers);
+        });
+
+        it("should update vendor header fingerprint", async () => {
+            const updateData = {
+                header_fingerprint: "codex_cli",
+            };
+            const response = await requestHelper.put(
+                `/vendor/${createdVendorId}`,
+                updateData,
+                adminToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.header_fingerprint).toBe("codex_cli");
         });
 
         it("should update multiple fields at once", async () => {

@@ -303,6 +303,7 @@ describe("AI Chat API", () => {
             const customHeaders = {
                 "x-custom-header": "custom-value",
                 "x-another-header": "another-value",
+                "user-agent": "client-test-agent/1.0",
                 "cf-ray": "test-cf-ray-123", // Cloudflare header - should be filtered
                 "cf-ipcountry": "US", // Cloudflare header - should be filtered
                 "CF-CONNECTING-IP": "1.2.3.4", // Cloudflare header (uppercase) - should be filtered
@@ -328,6 +329,7 @@ describe("AI Chat API", () => {
             // Verify custom headers were forwarded
             expect(receivedHeaders["x-custom-header"]).toBe("custom-value");
             expect(receivedHeaders["x-another-header"]).toBe("another-value");
+            expect(receivedHeaders["user-agent"]).toBe("client-test-agent/1.0");
 
             // Verify Cloudflare headers were NOT forwarded
             expect(receivedHeaders["cf-ray"]).toBeUndefined();
@@ -394,6 +396,86 @@ describe("AI Chat API", () => {
             expect(requestHeaders["x-client-only"]).toBe("client-only-value");
             expect(requestHeaders.authorization).toBe("Bearer header-override-token");
         }, 30000);
+
+        it("should apply provider-level header fingerprint to upstream request", async () => {
+            const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+            const fingerprintVendor = await requestHelper.post(
+                "/vendor/create.json",
+                {
+                    type: "other",
+                    name: "Codex Fingerprint Vendor",
+                    token: "codex-fingerprint-token",
+                    urls: { openai: `${mockBaseUrl}/chat/completions` },
+                    header_fingerprint: "codex_cli",
+                },
+                adminToken,
+            );
+
+            const modelName = `provider-fingerprint-model-${Date.now()}`;
+            await requestHelper.post(
+                "/model/create.json",
+                modelFixtures.createRandomModel(fingerprintVendor.body.id, modelName),
+                adminToken,
+            );
+
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                mockHelper.generateOpenAIChatRequest({
+                    model: modelName,
+                    stream: false,
+                }),
+                testUserToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body._received_headers["user-agent"]).toContain("codex_cli_rs/");
+            expect(response.body._received_headers.originator).toBe("codex_cli_rs");
+
+            const recordsResponse = await requestHelper.get(
+                "/record/latest.json?limit=1",
+                adminToken,
+            );
+            const requestHeaders = JSON.parse(recordsResponse.body[0].request_headers);
+            expect(requestHeaders["user-agent"]).toContain("codex_cli_rs/");
+            expect(requestHeaders.originator).toBe("codex_cli_rs");
+        }, 30000);
+
+        it("should remove client user-agent when provider fingerprint is none", async () => {
+            const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+            const noUaVendor = await requestHelper.post(
+                "/vendor/create.json",
+                {
+                    type: "other",
+                    name: "No UA Fingerprint Vendor",
+                    token: "no-ua-fingerprint-token",
+                    urls: { openai: `${mockBaseUrl}/chat/completions` },
+                    header_fingerprint: "none",
+                },
+                adminToken,
+            );
+
+            const modelName = `no-ua-fingerprint-model-${Date.now()}`;
+            await requestHelper.post(
+                "/model/create.json",
+                modelFixtures.createRandomModel(noUaVendor.body.id, modelName),
+                adminToken,
+            );
+
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                mockHelper.generateOpenAIChatRequest({
+                    model: modelName,
+                    stream: false,
+                }),
+                testUserToken,
+                {
+                    "user-agent": "client-test-agent/none-case",
+                },
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body._received_headers["user-agent"]).toBeUndefined();
+        }, 30000);
     });
 
     describe("vendor_model_id substitution", () => {
@@ -443,6 +525,56 @@ describe("AI Chat API", () => {
             const latestRecord = recordsResponse.body[0];
             expect(latestRecord.vendor_id).toBe(openaiVendorId);
             expect(latestRecord.vendor_model_name).toBe("actual-upstream-model-id");
+        });
+
+        it("should apply vendor-model header fingerprint override to upstream request", async () => {
+            const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+            const fingerprintVendor = await requestHelper.post(
+                "/vendor/create.json",
+                {
+                    type: "other",
+                    name: "Vendor Model Fingerprint Vendor",
+                    token: "vendor-model-fingerprint-token",
+                    urls: { openai: `${mockBaseUrl}/chat/completions` },
+                    header_fingerprint: "none",
+                },
+                adminToken,
+            );
+            const addVmRes = await requestHelper.post(
+                `/vendor/${fingerprintVendor.body.id}/model/add.json`,
+                {
+                    model_id: "actual-fingerprint-upstream-model",
+                    header_fingerprint: "codex_cli",
+                },
+                adminToken,
+            );
+
+            const createModelRes = await requestHelper.post(
+                "/model/create.json",
+                {
+                    name: "gateway-fingerprint-alias",
+                    vendor_id: fingerprintVendor.body.id,
+                    vendor_model_id: addVmRes.body.id,
+                    enable: true,
+                },
+                adminToken,
+            );
+            expect(createModelRes.status).toBe(200);
+
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                {
+                    model: "gateway-fingerprint-alias",
+                    messages: [{ role: "user", content: "ping" }],
+                    stream: false,
+                },
+                testUserToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.model).toBe("actual-fingerprint-upstream-model");
+            expect(response.body._received_headers["user-agent"]).toContain("codex_cli_rs/");
+            expect(response.body._received_headers.originator).toBe("codex_cli_rs");
         });
 
         it("should use gateway model name as-is when vendor_model_id is null and record it correctly", async () => {
