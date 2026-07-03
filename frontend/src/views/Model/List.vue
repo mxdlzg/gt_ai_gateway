@@ -65,7 +65,7 @@
                                 class="route-summary-row"
                             >
                                 <a-tag :color="route.enabled ? 'blue' : 'default'">
-                                    P{{ route.priority }} / W{{ route.weight }}
+                                    P{{ route.priority }} / W{{ route.weight }}<template v-if="route.cost_weight"> / C{{ route.cost_weight }}</template>
                                 </a-tag>
                                 <span>{{ getVendorName(route.vendor_id) }}</span>
                             </div>
@@ -241,6 +241,7 @@ function getDisplayRoutes(record: Model): ModelProviderRoute[] {
         vendor_model_id: record.vendor_model_id,
         priority: 100,
         weight: 1,
+        cost_weight: 0,
         enabled: true,
         created_at: record.created_at,
         updated_at: record.updated_at,

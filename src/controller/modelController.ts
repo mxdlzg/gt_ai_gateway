@@ -53,6 +53,7 @@ async function createModel(c: Context) {
             vendor_model_id,
             priority: 100,
             weight: 1,
+            cost_weight: 0,
             enabled: true,
         }];
     const primaryRoute = normalizedRoutes

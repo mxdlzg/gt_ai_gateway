@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import recordService from "../../src/service/recordService";
 import { SgRecord } from "../../src/model/sgRecord";
+import configService from "../../src/service/configService";
 
 
 describe("recordService", () => {
@@ -22,6 +23,15 @@ describe("recordService", () => {
                 })),
             })),
         } as any);
+
+        vi.spyOn(configService, "getConfig").mockImplementation(async (_name, defaultValue = "") => ({
+            getString: () => defaultValue,
+            getBoolean: () => defaultValue === "true",
+            getNumber: () => {
+                const parsed = Number(defaultValue);
+                return Number.isFinite(parsed) ? parsed : 0;
+            },
+        }) as any);
     });
 
     afterEach(() => {

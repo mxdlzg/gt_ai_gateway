@@ -19,6 +19,7 @@ export interface ModelProviderRoute extends BaseEntity {
     vendor_model_id: number | null;
     priority: number;
     weight: number;
+    cost_weight: number;
     enabled: boolean;
 }
 
@@ -27,6 +28,7 @@ export interface ModelProviderRouteInput {
     vendor_model_id?: number | null;
     priority?: number;
     weight?: number;
+    cost_weight?: number;
     enabled?: boolean;
 }
 

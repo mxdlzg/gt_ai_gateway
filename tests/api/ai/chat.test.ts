@@ -394,7 +394,7 @@ describe("AI Chat API", () => {
             expect(requestHeaders["x-provider-header"]).toBe("provider-value");
             expect(requestHeaders["x-provider-only"]).toBe("provider-only-value");
             expect(requestHeaders["x-client-only"]).toBe("client-only-value");
-            expect(requestHeaders.authorization).toBe("Bearer header-override-token");
+            expect(requestHeaders.authorization).toBe("[REDACTED]");
         }, 30000);
 
         it("should apply provider-level header fingerprint to upstream request", async () => {
@@ -475,6 +475,68 @@ describe("AI Chat API", () => {
 
             expect(response.status).toBe(200);
             expect(response.body._received_headers["user-agent"]).toBeUndefined();
+        }, 30000);
+
+        it("should fallback to the next provider route on retryable upstream status", async () => {
+            const mockBaseUrl = config.UPSTREAM_CONFIG.mock.url;
+            const retryableVendor = await requestHelper.post(
+                "/vendor/create.json",
+                {
+                    type: "other",
+                    name: "Retryable Error Vendor",
+                    token: "retryable-error-token",
+                    urls: { openai: `${mockBaseUrl}/chat/completions/retryable` },
+                },
+                adminToken,
+            );
+
+            const modelName = `fallback-route-model-${Date.now()}`;
+            const modelResponse = await requestHelper.post(
+                "/model/create.json",
+                {
+                    name: modelName,
+                    vendor_id: retryableVendor.body.id,
+                    enable: true,
+                    routes: [
+                        {
+                            vendor_id: retryableVendor.body.id,
+                            priority: 0,
+                            weight: 1,
+                            enabled: true,
+                        },
+                        {
+                            vendor_id: openaiVendorId,
+                            priority: 10,
+                            weight: 1,
+                            enabled: true,
+                        },
+                    ],
+                },
+                adminToken,
+            );
+            expect(modelResponse.status).toBe(200);
+
+            const response = await requestHelper.post(
+                "/llm/v1/chat/completions",
+                mockHelper.generateOpenAIChatRequest({
+                    model: modelName,
+                    stream: false,
+                }),
+                testUserToken,
+            );
+
+            expect(response.status).toBe(200);
+            expect(response.body.model).toBe(modelName);
+
+            const recordsResponse = await requestHelper.get(
+                "/record/latest.json?limit=1",
+                adminToken,
+            );
+            const latestRecord = recordsResponse.body[0];
+            expect(latestRecord.model_id).toBe(modelResponse.body.id);
+            expect(latestRecord.vendor_id).toBe(openaiVendorId);
+            expect(latestRecord.vendor_model_name).toBe(modelName);
+            expect(latestRecord.status).toBe("success");
         }, 30000);
     });
 

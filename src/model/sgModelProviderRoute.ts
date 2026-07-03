@@ -10,6 +10,7 @@ class SgModelProviderRoute extends Model {
     vendor_model_id!: number | null;
     priority!: number;
     weight!: number;
+    cost_weight!: number;
     enabled!: boolean;
 
     created_at!: Date;

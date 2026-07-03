@@ -11,6 +11,7 @@ export interface ModelProviderRouteInput {
     vendor_model_id?: number | null;
     priority?: number;
     weight?: number;
+    cost_weight?: number;
     enabled?: boolean;
 }
 
@@ -22,12 +23,20 @@ function normalizePositiveInt(value: unknown, fallback: number): number {
 }
 
 
+function normalizePositiveNumber(value: unknown, fallback: number): number {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return fallback;
+    return Math.max(0, parsed);
+}
+
+
 function normalizeRouteInput(route: ModelProviderRouteInput, index: number) {
     return {
         vendor_id: Number(route.vendor_id),
         vendor_model_id: route.vendor_model_id ? Number(route.vendor_model_id) : null,
         priority: normalizePositiveInt(route.priority, 100 + index),
         weight: Math.max(1, normalizePositiveInt(route.weight, 1)),
+        cost_weight: normalizePositiveNumber(route.cost_weight, 0),
         enabled: route.enabled !== false,
     };
 }
@@ -41,6 +50,7 @@ function routeToResponse(route: SgModelProviderRoute) {
         vendor_model_id: route.vendor_model_id,
         priority: route.priority,
         weight: route.weight,
+        cost_weight: Number(route.cost_weight ?? 0),
         enabled: Boolean(route.enabled),
         created_at: route.created_at,
         updated_at: route.updated_at,
@@ -87,6 +97,7 @@ async function replaceModelRoutes(modelId: number, routes: ModelProviderRouteInp
             vendor_model_id: route.vendor_model_id,
             priority: route.priority,
             weight: route.weight,
+            cost_weight: route.cost_weight,
             enabled: route.enabled,
         });
     }
@@ -201,6 +212,7 @@ async function updateModel(
                 vendor_model_id: data.vendor_model_id ?? null,
                 priority: 100,
                 weight: 1,
+                cost_weight: 0,
                 enabled: true,
             }]
             : null

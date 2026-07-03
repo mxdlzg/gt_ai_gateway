@@ -95,9 +95,18 @@ async function clearRecords(c: Context) {
     });
 }
 
+async function cleanupRecords(c: Context) {
+    const result = await recordService.cleanupByPolicy();
+    return c.json({
+        success: true,
+        ...result,
+    });
+}
+
 export default {
     listRecords,
     latestRecords,
     getRecord,
     clearRecords,
+    cleanupRecords,
 };

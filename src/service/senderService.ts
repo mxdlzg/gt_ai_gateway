@@ -329,6 +329,38 @@ interface SelectedProviderRoute {
 }
 
 
+interface ResolvedProviderRoute extends SelectedProviderRoute {
+    routeId: number | null;
+    priority: number;
+    weight: number;
+    costWeight: number;
+    upstreamFormat: ApiFormat;
+    url: string;
+}
+
+
+interface RoutingConfig {
+    fallbackEnabled: boolean;
+    maxAttempts: number;
+    retryStatusCodes: number[];
+    selectionStrategy: "priority_weight" | "latency" | "cost";
+}
+
+
+interface RouteAttemptError {
+    attempt: number;
+    route_id: number | null;
+    vendor_id: number;
+    vendor_model_name: string | null;
+    upstream_format: ApiFormat;
+    url: string;
+    status?: number;
+    error?: string;
+    detail?: SerializedFetchError;
+    response_preview?: string;
+}
+
+
 function chooseWeightedRoute<T extends { weight: number }>(routes: T[]): T {
     const totalWeight = routes.reduce((sum, route) => sum + Math.max(1, route.weight), 0);
     let cursor = Math.random() * totalWeight;
@@ -342,6 +374,50 @@ function chooseWeightedRoute<T extends { weight: number }>(routes: T[]): T {
 }
 
 
+function orderWeightedRoutes<T extends { weight: number }>(routes: T[]): T[] {
+    const remaining = [...routes];
+    const ordered: T[] = [];
+
+    while (remaining.length > 0) {
+        const selected = chooseWeightedRoute(remaining);
+        ordered.push(selected);
+        remaining.splice(remaining.indexOf(selected), 1);
+    }
+
+    return ordered;
+}
+
+
+function parseStatusCodes(value: string): number[] {
+    const codes = value
+        .split(",")
+        .map(item => Number(item.trim()))
+        .filter(code => Number.isInteger(code) && code >= 400 && code <= 599);
+    return codes.length > 0 ? codes : [429, 500, 502, 503, 504];
+}
+
+
+async function getRoutingConfig(): Promise<RoutingConfig> {
+    const rawStrategy = (await configService.getConfig(
+        ConfigKey.ROUTING_SELECTION_STRATEGY,
+        "priority_weight",
+    )).getString();
+
+    const strategy = ["latency", "cost"].includes(rawStrategy)
+        ? rawStrategy as RoutingConfig["selectionStrategy"]
+        : "priority_weight";
+
+    return {
+        fallbackEnabled: (await configService.getConfig(ConfigKey.ROUTING_FALLBACK_ENABLED, "true")).getBoolean(),
+        maxAttempts: Math.max(1, (await configService.getConfig(ConfigKey.ROUTING_MAX_ATTEMPTS, "3")).getNumber() || 3),
+        retryStatusCodes: parseStatusCodes(
+            (await configService.getConfig(ConfigKey.ROUTING_RETRY_STATUS_CODES, "429,500,502,503,504")).getString(),
+        ),
+        selectionStrategy: strategy,
+    };
+}
+
+
 async function buildLegacyRoute(modelConfig: SgModel): Promise<SgModelProviderRoute | null> {
     if (!modelConfig.vendor_id) return null;
 
@@ -351,6 +427,7 @@ async function buildLegacyRoute(modelConfig: SgModel): Promise<SgModelProviderRo
     route.vendor_model_id = modelConfig.vendor_model_id ?? null;
     route.priority = 100;
     route.weight = 1;
+    route.cost_weight = 0;
     route.enabled = true;
     return route;
 }
@@ -372,12 +449,99 @@ async function getCandidateRoutes(modelConfig: SgModel): Promise<SgModelProvider
 }
 
 
-async function resolveProviderRoute(
+function getRouteLatencyKey(route: ResolvedProviderRoute): string {
+    return `${route.vendor.id}|${route.vendorModelName ?? ""}`;
+}
+
+
+async function getRecentLatencyMap(modelId: number): Promise<Map<string, number>> {
+    const records = await SgRecord.query()
+        .where("model_id", modelId)
+        .where("status", SgRecordStatus.SUCCESS)
+        .orderBy("id", "desc")
+        .limit(200)
+        .get();
+
+    const samples = new Map<string, number[]>();
+    for (const record of records.toArray() as SgRecord[]) {
+        if (!record.vendor_id || !record.start_at || !record.end_at) continue;
+
+        const startTime = new Date(record.start_at).getTime();
+        const endTime = new Date(record.end_at).getTime();
+        if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime < startTime) continue;
+
+        const key = `${record.vendor_id}|${record.vendor_model_name ?? ""}`;
+        const list = samples.get(key) ?? [];
+        list.push(endTime - startTime);
+        samples.set(key, list);
+    }
+
+    const result = new Map<string, number>();
+    for (const [key, values] of samples.entries()) {
+        result.set(key, values.reduce((sum, value) => sum + value, 0) / values.length);
+    }
+    return result;
+}
+
+
+function orderRouteGroupByCost(routes: ResolvedProviderRoute[]): ResolvedProviderRoute[] {
+    const weightedOrder = orderWeightedRoutes(routes);
+    return [...weightedOrder].sort((a, b) => {
+        const aCost = a.costWeight > 0 ? a.costWeight : Number.POSITIVE_INFINITY;
+        const bCost = b.costWeight > 0 ? b.costWeight : Number.POSITIVE_INFINITY;
+        if (aCost !== bCost) return aCost - bCost;
+        return 0;
+    });
+}
+
+
+function orderRouteGroupByLatency(
+    routes: ResolvedProviderRoute[],
+    latencyMap: Map<string, number>,
+): ResolvedProviderRoute[] {
+    const weightedOrder = orderWeightedRoutes(routes);
+    return [...weightedOrder].sort((a, b) => {
+        const aLatency = latencyMap.get(getRouteLatencyKey(a)) ?? Number.POSITIVE_INFINITY;
+        const bLatency = latencyMap.get(getRouteLatencyKey(b)) ?? Number.POSITIVE_INFINITY;
+        if (aLatency !== bLatency) return aLatency - bLatency;
+        return 0;
+    });
+}
+
+
+async function orderProviderRoutes(
+    routes: ResolvedProviderRoute[],
+    modelConfig: SgModel,
+    strategy: RoutingConfig["selectionStrategy"],
+): Promise<ResolvedProviderRoute[]> {
+    const priorities = [...new Set(routes.map(route => route.priority))].sort((a, b) => a - b);
+    const latencyMap = strategy === "latency"
+        ? await getRecentLatencyMap(modelConfig.id)
+        : new Map<string, number>();
+    const ordered: ResolvedProviderRoute[] = [];
+
+    for (const priority of priorities) {
+        const group = routes.filter(route => route.priority === priority);
+        if (strategy === "latency") {
+            ordered.push(...orderRouteGroupByLatency(group, latencyMap));
+        } else if (strategy === "cost") {
+            ordered.push(...orderRouteGroupByCost(group));
+        } else {
+            ordered.push(...orderWeightedRoutes(group));
+        }
+    }
+
+    return ordered;
+}
+
+
+async function resolveProviderRoutes(
     modelConfig: SgModel,
     clientFormat: ApiFormat,
-): Promise<SelectedProviderRoute & { upstreamFormat: ApiFormat; url: string }> {
+    routingConfig: RoutingConfig,
+): Promise<ResolvedProviderRoute[]> {
     const routes = await getCandidateRoutes(modelConfig);
-    const candidates: Array<SelectedProviderRoute & { priority: number; weight: number; upstreamFormat: ApiFormat; url: string }> = [];
+    const candidates: ResolvedProviderRoute[] = [];
 
     for (const route of routes) {
         const vendor = await SgVendor.query().find(route.vendor_id);
@@ -404,12 +568,14 @@ async function resolveProviderRoute(
         try {
             const url = vendor.getUrlByFormat(upstreamFormat);
             candidates.push({
+                routeId: Number(route.id || 0) || null,
                 vendor,
                 vendorModel,
                 vendorModelName,
                 supportedFormats: finalSupportedFormats,
                 priority: Number(route.priority ?? 100),
                 weight: Math.max(1, Number(route.weight ?? 1)),
+                costWeight: Math.max(0, Number((route as any).cost_weight ?? 0)),
                 upstreamFormat,
                 url,
             });
@@ -428,9 +594,7 @@ async function resolveProviderRoute(
         throw new customError.AppError("No available provider route for model", 400);
     }
 
-    const minPriority = Math.min(...candidates.map(route => route.priority));
-    const topRoutes = candidates.filter(route => route.priority === minPriority);
-    return chooseWeightedRoute(topRoutes);
+    return orderProviderRoutes(candidates, modelConfig, routingConfig.selectionStrategy);
 }
 
 
@@ -1067,6 +1231,106 @@ async function handleResponsesNonStreamResponse(
 }
 
 
+interface PreparedUpstreamRequest {
+    headers: Headers;
+    body: string;
+    converter: BaseConverter | null;
+}
+
+
+async function prepareUpstreamRequest(
+    c: Context,
+    user: SgUser,
+    route: ResolvedProviderRoute,
+    clientFormat: ApiFormat,
+    originalBody: string,
+    hostKey: string,
+): Promise<PreparedUpstreamRequest> {
+    const needsConversion = clientFormat !== route.upstreamFormat;
+    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, route.vendor, route.upstreamFormat, route.vendorModel);
+
+    let upstreamBody = originalBody;
+    if (route.vendorModel) {
+        try {
+            const bodyJson = JSON.parse(upstreamBody);
+            bodyJson.model = route.vendorModel.model_id;
+            upstreamBody = JSON.stringify(bodyJson);
+        } catch (e) {
+            console.log("[senderService] Failed to substitute model name:", e);
+        }
+    }
+
+    upstreamBody = await pluginService.applyRequestPlugins(upstreamBody, clientFormat, hostKey, user.name);
+
+    let converter: BaseConverter | null = null;
+    if (needsConversion) {
+        converter = ConverterFactory.createPair(clientFormat, route.upstreamFormat);
+        if (!converter) {
+            throw new customError.AppError(
+                `Unsupported protocol conversion: ${clientFormat} → ${route.upstreamFormat}`,
+                400,
+            );
+        }
+        console.log(`[senderService] Using protocol converter: ${converter.constructor.name}, client=${clientFormat}, upstream=${route.upstreamFormat}`);
+        upstreamBody = converter.convertRequestBody(upstreamBody);
+    }
+
+    let requestModel = "unknown";
+    try {
+        const parsedBody = JSON.parse(upstreamBody);
+        requestModel = parsedBody.model || "unknown";
+    } catch (e) {}
+    converter?.updateModel(requestModel);
+
+    if (route.upstreamFormat === ApiFormat.OPENAI) {
+        try {
+            const bodyJson = JSON.parse(upstreamBody);
+            if (bodyJson.stream === true) {
+                bodyJson.stream_options = { include_usage: true };
+                upstreamBody = JSON.stringify(bodyJson);
+            }
+        } catch (e) {
+            console.log("Failed to inject stream_options:", e);
+        }
+    }
+
+    if (needsConversion) {
+        upstreamBody = await pluginService.applyRequestPlugins(upstreamBody, route.upstreamFormat, hostKey, user.name);
+    }
+
+    return {
+        headers: finalHeaders,
+        body: upstreamBody,
+        converter,
+    };
+}
+
+
+function getRouteAttemptErrorBase(route: ResolvedProviderRoute, attempt: number) {
+    return {
+        attempt,
+        route_id: route.routeId,
+        vendor_id: route.vendor.id,
+        vendor_model_name: route.vendorModelName,
+        upstream_format: route.upstreamFormat,
+        url: route.url,
+    };
+}
+
+
+function shouldRetryStatus(status: number, routingConfig: RoutingConfig): boolean {
+    return routingConfig.retryStatusCodes.includes(status);
+}
+
+
+function buildAttemptSummary(attemptErrors: RouteAttemptError[]) {
+    return {
+        error: attemptErrors[attemptErrors.length - 1]?.error || "All provider routes failed",
+        attempts: attemptErrors,
+    };
+}
+
+
 async function sendRequest(
     c: Context,
     user: SgUser,
@@ -1074,14 +1338,25 @@ async function sendRequest(
     format: ApiFormat,
     body: string,
 ): Promise<Response> {
-    const selectedRoute = await resolveProviderRoute(modelConfig, format);
-    const vendor = selectedRoute.vendor;
-    const vendorModelName = selectedRoute.vendorModelName;
-    const upstreamFormat = selectedRoute.upstreamFormat;
-    const needsConversion = format !== upstreamFormat;
-    const url = selectedRoute.url;
+    const routingConfig = await getRoutingConfig();
+    const resolvedRoutes = await resolveProviderRoutes(modelConfig, format, routingConfig);
+    const routesToTry = routingConfig.fallbackEnabled
+        ? resolvedRoutes.slice(0, Math.min(routingConfig.maxAttempts, resolvedRoutes.length))
+        : resolvedRoutes.slice(0, 1);
+    const firstRoute = routesToTry[0];
 
-    console.log("sendRequest: modelConfig={}, vendor={}, format={}, upstreamFormat={}", modelConfig, vendor.id, format, upstreamFormat);
+    if (!firstRoute) {
+        throw new customError.AppError("No available provider route for model", 400);
+    }
+
+    console.log("[senderService] sendRequest route candidates:", routesToTry.map(route => ({
+        routeId: route.routeId,
+        vendorId: route.vendor.id,
+        vendorModelName: route.vendorModelName,
+        priority: route.priority,
+        weight: route.weight,
+        upstreamFormat: route.upstreamFormat,
+    })));
 
     // Check user balance (only for non-root users)
     if (user.type !== "root") {
@@ -1096,113 +1371,122 @@ async function sendRequest(
         modelConfig.id,
         body,
         format,
-        upstreamFormat,
-        vendor.id,
-        vendorModelName
+        firstRoute.upstreamFormat,
+        firstRoute.vendor.id,
+        firstRoute.vendorModelName
     );
-    // 2. 构建上游请求 headers，过滤掉 Cloudflare 注入的 cf- 前缀 header
-    // 并且必须排除客户端自带的鉴权 header，避免泄露或导致合并错误
-    // 同时排除浏览器相关的元数据 header，避免上游校验失败
-    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, vendor, upstreamFormat, selectedRoute.vendorModel);
-    await recordService.update(record.id, {
-        status: SgRecordStatus.PROCESSING,
-        start_at: new Date(),
-        request_headers: JSON.stringify(serializeHeaders(finalHeaders)),
-    });
-
-    // 3. 替换上游模型名：若路由配置了 vendor_model_id，用对应的 vendor_model.model_id 替换请求体中的 model 字段
-    let upstreamBody = body;
-    if (selectedRoute.vendorModel) {
-        try {
-            const bodyJson = JSON.parse(upstreamBody);
-            bodyJson.model = selectedRoute.vendorModel.model_id;
-            upstreamBody = JSON.stringify(bodyJson);
-        } catch (e) {
-            console.log("[senderService] Failed to substitute model name:", e);
-        }
-    }
-
-    // 4. 应用插件 (转换前)
     const hostKey = await hostService.getHostKey();
-    upstreamBody = await pluginService.applyRequestPlugins(upstreamBody, format, hostKey, user.name);
+    const attemptErrors: RouteAttemptError[] = [];
+    const requestStartedAt = new Date();
 
-    let converter: BaseConverter | null = null;
-    if (needsConversion) {
-        converter = ConverterFactory.createPair(format, upstreamFormat);
-        if (!converter) {
-            throw new customError.AppError(
-                `Unsupported protocol conversion: ${format} → ${upstreamFormat}`,
-                400,
-            );
+    for (let index = 0; index < routesToTry.length; index++) {
+        const route = routesToTry[index];
+        const attempt = index + 1;
+        const hasNextRoute = index < routesToTry.length - 1;
+        const prepared = await prepareUpstreamRequest(c, user, route, format, body, hostKey);
+
+        const processingUpdate: Partial<SgRecord> = {
+            status: SgRecordStatus.PROCESSING,
+            failed_code: null,
+            vendor_id: route.vendor.id,
+            vendor_model_name: route.vendorModelName,
+            upstream_format: route.upstreamFormat !== format ? route.upstreamFormat : null,
+            request_headers: JSON.stringify(serializeHeaders(prepared.headers)),
+        };
+        if (attempt === 1) {
+            processingUpdate.start_at = requestStartedAt;
         }
-        console.log(`[senderService] Using protocol converter: ${converter.constructor.name}, client=${format}, upstream=${upstreamFormat}`);
-        upstreamBody = converter.convertRequestBody(upstreamBody);
-    }
+        await recordService.update(record.id, processingUpdate);
 
-    let requestModel = "unknown";
-    try {
-        const parsedBody = JSON.parse(upstreamBody);
-        requestModel = parsedBody.model || "unknown";
-    } catch (e) {}
-    converter?.updateModel(requestModel);
+        await writeRequestLog(record, prepared.body);
 
-    // 4. OpenAI 流式请求注入 stream_options，让上游在最后一帧返回 usage
-    if (upstreamFormat === ApiFormat.OPENAI) {
+        let upstreamRes: Response;
         try {
-            const bodyJson = JSON.parse(upstreamBody);
-            if (bodyJson.stream === true) {
-                bodyJson.stream_options = { include_usage: true };
-                upstreamBody = JSON.stringify(bodyJson);
-            }
-        } catch (e) {
-            console.log("Failed to inject stream_options:", e);
-        }
-    }
-
-    // 6. 应用插件 (转换后)
-    if (needsConversion) {
-        upstreamBody = await pluginService.applyRequestPlugins(upstreamBody, upstreamFormat, hostKey, user.name);
-    }
-
-    await writeRequestLog(record, upstreamBody);
-
-    // 4. 发起上游请求，拿到响应头后立即判断响应类型
-    let upstreamRes: Response;
-    try {
-        upstreamRes = await fetchWithProxy(url, { method: "POST", headers: finalHeaders, body: upstreamBody, signal: c.req.raw.signal }, vendor);
-    } catch (e: any) {
-        const errorDetail = serializeFetchError(e);
-        console.error("Upstream fetch failed:", errorDetail);
-        await recordService.update(record.id, {
-            status: SgRecordStatus.FAILED,
-            response_data: JSON.stringify({
+            upstreamRes = await fetchWithProxy(
+                route.url,
+                {
+                    method: "POST",
+                    headers: prepared.headers,
+                    body: prepared.body,
+                    signal: c.req.raw.signal,
+                },
+                route.vendor,
+            );
+        } catch (e: any) {
+            const errorDetail = serializeFetchError(e);
+            const attemptError: RouteAttemptError = {
+                ...getRouteAttemptErrorBase(route, attempt),
                 error: formatFetchError(e),
                 detail: errorDetail,
-            }),
-            end_at: new Date(),
+            };
+            attemptErrors.push(attemptError);
+            console.error("[senderService] Upstream fetch failed:", attemptError);
+
+            await recordService.update(record.id, {
+                status: hasNextRoute ? SgRecordStatus.PROCESSING : SgRecordStatus.FAILED,
+                failed_code: FailedCode.UPSTREAM_DISCONNECTED,
+                response_data: JSON.stringify(buildAttemptSummary(attemptErrors)),
+                end_at: hasNextRoute ? null : new Date(),
+            });
+
+            if (hasNextRoute) {
+                continue;
+            }
+
+            throw new customError.AppError(
+                `Upstream fetch failed: ${formatFetchError(e)}`,
+                502,
+                "upstream_fetch_error",
+            );
+        }
+
+        console.log("[senderService] upstream response status:", upstreamRes.status, {
+            attempt,
+            routeId: route.routeId,
+            vendorId: route.vendor.id,
         });
-        throw e;
-    }
-    console.log("upstream response status:", upstreamRes.status);
 
-    const isStream =
-        upstreamRes.ok &&
-        upstreamRes.headers.get("content-type")?.startsWith("text/event-stream");
+        if (!upstreamRes.ok && hasNextRoute && shouldRetryStatus(upstreamRes.status, routingConfig)) {
+            const responseText = await upstreamRes.text().catch(() => "");
+            attemptErrors.push({
+                ...getRouteAttemptErrorBase(route, attempt),
+                status: upstreamRes.status,
+                error: `Upstream returned HTTP ${upstreamRes.status}`,
+                response_preview: responseText.slice(0, 1000),
+            });
 
-    // 4. 按响应类型分发处理
-    if (format === ApiFormat.RESPONSES) {
+            await recordService.update(record.id, {
+                status: SgRecordStatus.PROCESSING,
+                response_data: JSON.stringify(buildAttemptSummary(attemptErrors)),
+            });
+            continue;
+        }
+
+        const isStream =
+            upstreamRes.ok &&
+            upstreamRes.headers.get("content-type")?.startsWith("text/event-stream");
+
+        if (format === ApiFormat.RESPONSES) {
+            if (isStream) {
+                return handleResponsesStreamResponse(c, upstreamRes, record, modelConfig, user, prepared.converter, route.upstreamFormat);
+            } else {
+                return handleResponsesNonStreamResponse(c, upstreamRes, record, modelConfig, user, prepared.converter, route.upstreamFormat);
+            }
+        }
+
         if (isStream) {
-            return handleResponsesStreamResponse(c, upstreamRes, record, modelConfig, user, converter, upstreamFormat);
+            return handleStreamResponse(c, upstreamRes, record, modelConfig, user, format, route.upstreamFormat, prepared.converter);
         } else {
-            return handleResponsesNonStreamResponse(c, upstreamRes, record, modelConfig, user, converter, upstreamFormat);
+            return handleNonStreamResponse(c, upstreamRes, record, modelConfig, user, format, route.upstreamFormat, prepared.converter);
         }
     }
 
-    if (isStream) {
-        return handleStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
-    } else {
-        return handleNonStreamResponse(c, upstreamRes, record, modelConfig, user, format, upstreamFormat, converter);
-    }
+    await recordService.update(record.id, {
+        status: SgRecordStatus.FAILED,
+        response_data: JSON.stringify(buildAttemptSummary(attemptErrors)),
+        end_at: new Date(),
+    });
+    throw new customError.AppError("All provider routes failed", 502, "upstream_route_failed");
 }
 
 

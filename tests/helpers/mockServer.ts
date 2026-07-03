@@ -231,6 +231,8 @@ function handleRequest(req: IncomingMessage, res: ServerResponse): void {
         handleOpenAIStreamDisconnect(req, res);
     } else if (url.includes("/chat/completions/slow")) {
         handleOpenAIStreamSlow(req, res);
+    } else if (url.includes("/chat/completions/retryable")) {
+        handleOpenAIChatRetryableError(req, res);
     } else if (url.includes("/chat/completions/error")) {
         handleOpenAIChatError(req, res);
     } else if (url.includes("/chat/completions")) {
@@ -310,6 +312,31 @@ function handleOpenAIChatError(req: IncomingMessage, res: ServerResponse): void 
                     type: "invalid_request_error",
                     param: "model",
                     code: "model_not_supported",
+                },
+            }));
+        } catch (e) {
+            handleBadRequest(res, "Invalid request body");
+        }
+    });
+}
+
+
+function handleOpenAIChatRetryableError(req: IncomingMessage, res: ServerResponse): void {
+    let body = "";
+
+    req.on("data", (chunk) => {
+        body += chunk.toString();
+    });
+
+    req.on("end", () => {
+        try {
+            const data = body ? JSON.parse(body) : {};
+            res.writeHead(503, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({
+                error: {
+                    message: `Temporarily unavailable for ${data.model || "unknown"}`,
+                    type: "server_error",
+                    code: "temporarily_unavailable",
                 },
             }));
         } catch (e) {

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { clearAllRecords, listRecords, latestRecords, getRecord } from '@/api/record';
+import { cleanupRecords, clearAllRecords, listRecords, latestRecords, getRecord } from '@/api/record';
 import { getUser, fetchUsersByIds } from '@/api/user';
 import { getModel, fetchModelsByIds } from '@/api/model';
 import { getVendor, fetchVendorsByIds } from '@/api/vendor';
@@ -191,6 +191,16 @@ export const useRecordStore = defineStore('record', () => {
         }
     }
 
+    async function cleanup(): Promise<number> {
+        loading.value = true;
+        try {
+            const result = await cleanupRecords();
+            return result.deleted;
+        } finally {
+            loading.value = false;
+        }
+    }
+
     return {
         records,
         currentRecord,
@@ -204,5 +214,6 @@ export const useRecordStore = defineStore('record', () => {
         clearCurrentRecord,
         clearRecords,
         clearAll,
+        cleanup,
     };
 });

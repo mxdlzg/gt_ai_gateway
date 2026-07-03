@@ -49,7 +49,7 @@
 
 
             <div class="settings-section">
-                <h3 class="section-title">网络代理</h3>
+                <h3 class="section-title">网络与记录</h3>
                 <div class="settings-list">
                     <div class="setting-item">
                         <div class="setting-info">
@@ -92,6 +92,78 @@
                     </div>
                     <div class="setting-item">
                         <div class="setting-info">
+                            <div class="setting-title">记录内容</div>
+                            <div class="setting-desc">控制新请求记录中是否保存请求体、响应体和最终上游 Headers</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-space wrap>
+                                <a-checkbox v-model:checked="form.request_record_request_body_enabled" :disabled="saving">
+                                    请求体
+                                </a-checkbox>
+                                <a-checkbox v-model:checked="form.request_record_response_body_enabled" :disabled="saving">
+                                    响应体
+                                </a-checkbox>
+                                <a-checkbox v-model:checked="form.request_record_headers_enabled" :disabled="saving">
+                                    Headers
+                                </a-checkbox>
+                            </a-space>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">敏感字段脱敏</div>
+                            <div class="setting-desc">保存请求记录前按字段名脱敏，字段名用英文逗号分隔</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-space direction="vertical" style="width: 100%">
+                                <a-switch
+                                    v-model:checked="form.request_record_redaction_enabled"
+                                    :disabled="saving"
+                                />
+                                <a-input
+                                    v-model:value="form.request_record_redaction_keys"
+                                    :disabled="saving || !form.request_record_redaction_enabled"
+                                />
+                            </a-space>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">记录保留策略</div>
+                            <div class="setting-desc">保留天数或最大条数为 0 时表示不限制；开启自动清理后会按小时检查</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-space direction="vertical" style="width: 100%">
+                                <a-space wrap>
+                                    <a-input-number
+                                        v-model:value="form.request_record_retention_days"
+                                        :disabled="saving"
+                                        :min="0"
+                                        :precision="0"
+                                        addon-before="天数"
+                                        style="width: 140px"
+                                    />
+                                    <a-input-number
+                                        v-model:value="form.request_record_max_count"
+                                        :disabled="saving"
+                                        :min="0"
+                                        :precision="0"
+                                        addon-before="条数"
+                                        style="width: 150px"
+                                    />
+                                    <a-switch
+                                        v-model:checked="form.request_record_auto_cleanup_enabled"
+                                        :disabled="saving"
+                                        checked-children="自动"
+                                        un-checked-children="手动"
+                                    />
+                                </a-space>
+                                <div v-if="lastCleanupText" class="setting-extra">{{ lastCleanupText }}</div>
+                            </a-space>
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
                             <div class="setting-title">测试请求超时</div>
                             <div class="setting-desc">供应商连通性、模型可用性和 API 测试请求等待上游响应的最长时间</div>
                         </div>
@@ -104,6 +176,67 @@
                                 :step="10"
                                 addon-after="秒"
                                 style="width: 160px"
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 class="section-title">路由策略</h3>
+                <div class="settings-list">
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">路由选择</div>
+                            <div class="setting-desc">同优先级路由的选择方式；失败后会继续尝试下一条可用路由</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-select
+                                v-model:value="form.routing_selection_strategy"
+                                :options="routingStrategyOptions"
+                                :disabled="saving"
+                                style="width: 180px"
+                            />
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">Fallback</div>
+                            <div class="setting-desc">启用后，连接失败或命中可重试 HTTP 状态码时会按路由队列继续尝试</div>
+                        </div>
+                        <div class="setting-action">
+                            <a-switch
+                                v-model:checked="form.routing_fallback_enabled"
+                                :disabled="saving"
+                            />
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">Fallback 尝试</div>
+                            <div class="setting-desc">单次客户端请求最多尝试的供应商路由数量</div>
+                        </div>
+                        <div class="setting-action setting-number">
+                            <a-input-number
+                                v-model:value="form.routing_max_attempts"
+                                :disabled="saving || !form.routing_fallback_enabled"
+                                :min="1"
+                                :max="20"
+                                :precision="0"
+                                addon-after="次"
+                                style="width: 160px"
+                            />
+                        </div>
+                    </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">可重试状态码</div>
+                            <div class="setting-desc">上游返回这些 HTTP 状态码时会触发 fallback，多个状态码用英文逗号分隔</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-input
+                                v-model:value="form.routing_retry_status_codes"
+                                :disabled="saving || !form.routing_fallback_enabled"
                             />
                         </div>
                     </div>
@@ -177,11 +310,32 @@ const saving = ref(false);
 const testingProxy = ref(false);
 const proxyTestResult = ref<ProxyTestResponse | null>(null);
 
+const DEFAULT_REDACTION_KEYS = 'authorization,x-api-key,api_key,apikey,access_token,refresh_token,token,password,secret,cookie,set-cookie';
+const DEFAULT_RETRY_STATUS_CODES = '429,500,502,503,504';
+const routingStrategyOptions = [
+    { label: '优先级 + 权重', value: 'priority_weight' },
+    { label: '延迟优先', value: 'latency' },
+    { label: '价格优先', value: 'cost' },
+];
+
 const originalConfig = reactive({
     cch_rewrite_enabled: false,
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
     request_record_enabled: true,
+    request_record_request_body_enabled: true,
+    request_record_response_body_enabled: true,
+    request_record_headers_enabled: true,
+    request_record_redaction_enabled: true,
+    request_record_redaction_keys: DEFAULT_REDACTION_KEYS,
+    request_record_retention_days: 0,
+    request_record_max_count: 0,
+    request_record_auto_cleanup_enabled: false,
+    request_record_last_cleanup_at: '',
+    routing_fallback_enabled: true,
+    routing_max_attempts: 3,
+    routing_retry_status_codes: DEFAULT_RETRY_STATUS_CODES,
+    routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
@@ -191,17 +345,46 @@ const form = reactive({
     responses_prompt_cache_key_enabled: false,
     claude_code_tracking_rewrite_enabled: true,
     request_record_enabled: true,
+    request_record_request_body_enabled: true,
+    request_record_response_body_enabled: true,
+    request_record_headers_enabled: true,
+    request_record_redaction_enabled: true,
+    request_record_redaction_keys: DEFAULT_REDACTION_KEYS,
+    request_record_retention_days: 0,
+    request_record_max_count: 0,
+    request_record_auto_cleanup_enabled: false,
+    request_record_last_cleanup_at: '',
+    routing_fallback_enabled: true,
+    routing_max_attempts: 3,
+    routing_retry_status_codes: DEFAULT_RETRY_STATUS_CODES,
+    routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
 });
 
+const configKeys = [
+    'cch_rewrite_enabled',
+    'responses_prompt_cache_key_enabled',
+    'claude_code_tracking_rewrite_enabled',
+    'request_record_enabled',
+    'request_record_request_body_enabled',
+    'request_record_response_body_enabled',
+    'request_record_headers_enabled',
+    'request_record_redaction_enabled',
+    'request_record_redaction_keys',
+    'request_record_retention_days',
+    'request_record_max_count',
+    'request_record_auto_cleanup_enabled',
+    'routing_fallback_enabled',
+    'routing_max_attempts',
+    'routing_retry_status_codes',
+    'routing_selection_strategy',
+    'upstream_proxy_url',
+    'test_request_timeout_seconds',
+] as const;
+
 const isDirty = computed(() => {
-    return form.cch_rewrite_enabled !== originalConfig.cch_rewrite_enabled ||
-           form.responses_prompt_cache_key_enabled !== originalConfig.responses_prompt_cache_key_enabled ||
-           form.claude_code_tracking_rewrite_enabled !== originalConfig.claude_code_tracking_rewrite_enabled ||
-           form.request_record_enabled !== originalConfig.request_record_enabled ||
-           form.upstream_proxy_url !== originalConfig.upstream_proxy_url ||
-           form.test_request_timeout_seconds !== originalConfig.test_request_timeout_seconds;
+    return configKeys.some(key => form[key] !== originalConfig[key]);
 });
 
 const proxyTestText = computed(() => {
@@ -214,9 +397,32 @@ const proxyTestText = computed(() => {
     return `${proxyText} 测试失败：${result.error || '未知错误'}`;
 });
 
+const lastCleanupText = computed(() => {
+    const value = form.request_record_last_cleanup_at || originalConfig.request_record_last_cleanup_at;
+    if (!value) return '';
+    return `上次清理：${formatCleanupTime(value)}`;
+});
+
 onMounted(() => {
     void loadConfig();
 });
+
+function readBoolean(value: string | undefined, defaultValue: boolean): boolean {
+    if (value === undefined || value === '') return defaultValue;
+    return value !== 'false';
+}
+
+function readNumber(value: string | undefined, defaultValue: number): number {
+    if (value === undefined || value === '') return defaultValue;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : defaultValue;
+}
+
+function formatCleanupTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+    return date.toLocaleString();
+}
 
 async function loadConfig(): Promise<void> {
     loading.value = true;
@@ -233,6 +439,45 @@ async function loadConfig(): Promise<void> {
 
         form.request_record_enabled = config.request_record_enabled !== "false"; // Default to true
         originalConfig.request_record_enabled = config.request_record_enabled !== "false";
+
+        form.request_record_request_body_enabled = readBoolean(config.request_record_request_body_enabled, true);
+        originalConfig.request_record_request_body_enabled = form.request_record_request_body_enabled;
+
+        form.request_record_response_body_enabled = readBoolean(config.request_record_response_body_enabled, true);
+        originalConfig.request_record_response_body_enabled = form.request_record_response_body_enabled;
+
+        form.request_record_headers_enabled = readBoolean(config.request_record_headers_enabled, true);
+        originalConfig.request_record_headers_enabled = form.request_record_headers_enabled;
+
+        form.request_record_redaction_enabled = readBoolean(config.request_record_redaction_enabled, true);
+        originalConfig.request_record_redaction_enabled = form.request_record_redaction_enabled;
+
+        form.request_record_redaction_keys = config.request_record_redaction_keys || DEFAULT_REDACTION_KEYS;
+        originalConfig.request_record_redaction_keys = form.request_record_redaction_keys;
+
+        form.request_record_retention_days = readNumber(config.request_record_retention_days, 0);
+        originalConfig.request_record_retention_days = form.request_record_retention_days;
+
+        form.request_record_max_count = readNumber(config.request_record_max_count, 0);
+        originalConfig.request_record_max_count = form.request_record_max_count;
+
+        form.request_record_auto_cleanup_enabled = readBoolean(config.request_record_auto_cleanup_enabled, false);
+        originalConfig.request_record_auto_cleanup_enabled = form.request_record_auto_cleanup_enabled;
+
+        form.request_record_last_cleanup_at = config.request_record_last_cleanup_at || '';
+        originalConfig.request_record_last_cleanup_at = form.request_record_last_cleanup_at;
+
+        form.routing_fallback_enabled = readBoolean(config.routing_fallback_enabled, true);
+        originalConfig.routing_fallback_enabled = form.routing_fallback_enabled;
+
+        form.routing_max_attempts = readNumber(config.routing_max_attempts, 3);
+        originalConfig.routing_max_attempts = form.routing_max_attempts;
+
+        form.routing_retry_status_codes = config.routing_retry_status_codes || DEFAULT_RETRY_STATUS_CODES;
+        originalConfig.routing_retry_status_codes = form.routing_retry_status_codes;
+
+        form.routing_selection_strategy = config.routing_selection_strategy || 'priority_weight';
+        originalConfig.routing_selection_strategy = form.routing_selection_strategy;
 
         form.upstream_proxy_url = config.upstream_proxy_url || '';
         originalConfig.upstream_proxy_url = config.upstream_proxy_url || '';
@@ -253,6 +498,19 @@ function cancelChanges() {
     form.responses_prompt_cache_key_enabled = originalConfig.responses_prompt_cache_key_enabled;
     form.claude_code_tracking_rewrite_enabled = originalConfig.claude_code_tracking_rewrite_enabled;
     form.request_record_enabled = originalConfig.request_record_enabled;
+    form.request_record_request_body_enabled = originalConfig.request_record_request_body_enabled;
+    form.request_record_response_body_enabled = originalConfig.request_record_response_body_enabled;
+    form.request_record_headers_enabled = originalConfig.request_record_headers_enabled;
+    form.request_record_redaction_enabled = originalConfig.request_record_redaction_enabled;
+    form.request_record_redaction_keys = originalConfig.request_record_redaction_keys;
+    form.request_record_retention_days = originalConfig.request_record_retention_days;
+    form.request_record_max_count = originalConfig.request_record_max_count;
+    form.request_record_auto_cleanup_enabled = originalConfig.request_record_auto_cleanup_enabled;
+    form.request_record_last_cleanup_at = originalConfig.request_record_last_cleanup_at;
+    form.routing_fallback_enabled = originalConfig.routing_fallback_enabled;
+    form.routing_max_attempts = originalConfig.routing_max_attempts;
+    form.routing_retry_status_codes = originalConfig.routing_retry_status_codes;
+    form.routing_selection_strategy = originalConfig.routing_selection_strategy;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
 }
@@ -322,6 +580,18 @@ async function saveConfig() {
             responses_prompt_cache_key_enabled: form.responses_prompt_cache_key_enabled ? "true" : "false",
             claude_code_tracking_rewrite_enabled: form.claude_code_tracking_rewrite_enabled ? "true" : "false",
             request_record_enabled: form.request_record_enabled ? "true" : "false",
+            request_record_request_body_enabled: form.request_record_request_body_enabled ? "true" : "false",
+            request_record_response_body_enabled: form.request_record_response_body_enabled ? "true" : "false",
+            request_record_headers_enabled: form.request_record_headers_enabled ? "true" : "false",
+            request_record_redaction_enabled: form.request_record_redaction_enabled ? "true" : "false",
+            request_record_redaction_keys: form.request_record_redaction_keys.trim() || DEFAULT_REDACTION_KEYS,
+            request_record_retention_days: String(Math.max(0, Math.floor(form.request_record_retention_days || 0))),
+            request_record_max_count: String(Math.max(0, Math.floor(form.request_record_max_count || 0))),
+            request_record_auto_cleanup_enabled: form.request_record_auto_cleanup_enabled ? "true" : "false",
+            routing_fallback_enabled: form.routing_fallback_enabled ? "true" : "false",
+            routing_max_attempts: String(Math.max(1, Math.floor(form.routing_max_attempts || 1))),
+            routing_retry_status_codes: form.routing_retry_status_codes.trim() || DEFAULT_RETRY_STATUS_CODES,
+            routing_selection_strategy: form.routing_selection_strategy,
             upstream_proxy_url: form.upstream_proxy_url.trim(),
             test_request_timeout_ms: String(Math.max(1, form.test_request_timeout_seconds) * 1000),
         });
@@ -330,9 +600,26 @@ async function saveConfig() {
         originalConfig.responses_prompt_cache_key_enabled = form.responses_prompt_cache_key_enabled;
         originalConfig.claude_code_tracking_rewrite_enabled = form.claude_code_tracking_rewrite_enabled;
         originalConfig.request_record_enabled = form.request_record_enabled;
+        originalConfig.request_record_request_body_enabled = form.request_record_request_body_enabled;
+        originalConfig.request_record_response_body_enabled = form.request_record_response_body_enabled;
+        originalConfig.request_record_headers_enabled = form.request_record_headers_enabled;
+        originalConfig.request_record_redaction_enabled = form.request_record_redaction_enabled;
+        originalConfig.request_record_redaction_keys = form.request_record_redaction_keys.trim() || DEFAULT_REDACTION_KEYS;
+        originalConfig.request_record_retention_days = Math.max(0, Math.floor(form.request_record_retention_days || 0));
+        originalConfig.request_record_max_count = Math.max(0, Math.floor(form.request_record_max_count || 0));
+        originalConfig.request_record_auto_cleanup_enabled = form.request_record_auto_cleanup_enabled;
+        originalConfig.routing_fallback_enabled = form.routing_fallback_enabled;
+        originalConfig.routing_max_attempts = Math.max(1, Math.floor(form.routing_max_attempts || 1));
+        originalConfig.routing_retry_status_codes = form.routing_retry_status_codes.trim() || DEFAULT_RETRY_STATUS_CODES;
+        originalConfig.routing_selection_strategy = form.routing_selection_strategy;
         originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
         setRequestTimeoutMs(originalConfig.test_request_timeout_seconds * 1000);
+        form.request_record_redaction_keys = originalConfig.request_record_redaction_keys;
+        form.request_record_retention_days = originalConfig.request_record_retention_days;
+        form.request_record_max_count = originalConfig.request_record_max_count;
+        form.routing_max_attempts = originalConfig.routing_max_attempts;
+        form.routing_retry_status_codes = originalConfig.routing_retry_status_codes;
         form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     } catch {
         // error handling is typically done by the request interceptor
@@ -428,6 +715,12 @@ async function saveConfig() {
 
 .proxy-test-result.error {
     color: #cf1322;
+}
+
+.setting-extra {
+    color: var(--text-secondary, #8c8c8c);
+    font-size: 12px;
+    line-height: 1.4;
 }
 
 .page-actions {

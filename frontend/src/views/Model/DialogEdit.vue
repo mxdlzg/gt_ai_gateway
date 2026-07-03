@@ -87,6 +87,13 @@
                             class="route-number"
                             addon-before="权重"
                         />
+                        <a-input-number
+                            v-model:value="route.cost_weight"
+                            :min="0"
+                            :precision="6"
+                            class="route-number"
+                            addon-before="成本"
+                        />
                         <a-switch v-model:checked="route.enabled" />
                     </div>
                     <div class="route-meta">
@@ -198,6 +205,7 @@ interface RouteFormItem {
     vendor_model_id?: number;
     priority: number;
     weight: number;
+    cost_weight: number;
     enabled: boolean;
 }
 
@@ -245,6 +253,7 @@ function createRoute(priority = 100): RouteFormItem {
         vendor_model_id: undefined,
         priority,
         weight: 1,
+        cost_weight: 0,
         enabled: true,
     };
 }
@@ -256,6 +265,7 @@ function mapModelRoute(route: NonNullable<Model['routes']>[number]): RouteFormIt
         vendor_model_id: route.vendor_model_id ?? undefined,
         priority: route.priority,
         weight: route.weight,
+        cost_weight: route.cost_weight ?? 0,
         enabled: Boolean(route.enabled),
     };
 }
@@ -361,6 +371,7 @@ function normalizeRoutes(): ModelProviderRouteInput[] | null {
             vendor_model_id: route.vendor_model_id ?? null,
             priority: route.priority,
             weight: route.weight,
+            cost_weight: route.cost_weight,
             enabled: route.enabled,
         }));
 
@@ -472,7 +483,7 @@ defineExpose({ open });
 
 .route-fields {
     display: grid;
-    grid-template-columns: minmax(150px, 1fr) minmax(180px, 1.2fr) 130px 120px 56px;
+    grid-template-columns: minmax(140px, 1fr) minmax(170px, 1.2fr) 120px 110px 120px 56px;
     gap: 8px;
     align-items: center;
 }

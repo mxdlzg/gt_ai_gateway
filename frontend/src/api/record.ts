@@ -23,6 +23,19 @@ export interface ClearRecordsResponse {
     stream_logs_cleared: boolean;
 }
 
+export interface CleanupRecordsResponse {
+    success: boolean;
+    deleted: number;
+    stream_logs_deleted: boolean;
+    retention_days: number;
+    max_count: number;
+    last_cleanup_at: string;
+}
+
 export function clearAllRecords(): Promise<ClearRecordsResponse> {
     return request.delete('/record/clear.json');
+}
+
+export function cleanupRecords(): Promise<CleanupRecordsResponse> {
+    return request.post('/record/cleanup.json');
 }

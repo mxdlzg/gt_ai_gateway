@@ -60,6 +60,19 @@
             <div class="action-area">
                 <a-space>
                     <a-popconfirm
+                        title="按高级设置中的保留策略清理请求记录？"
+                        ok-text="清理"
+                        cancel-text="取消"
+                        :disabled="recordStore.loading || recordStore.total === 0"
+                        @confirm="handleCleanupRecords"
+                    >
+                        <a-button
+                            :disabled="recordStore.loading || recordStore.total === 0"
+                        >
+                            按策略清理
+                        </a-button>
+                    </a-popconfirm>
+                    <a-popconfirm
                         title="确定要清空所有请求记录吗？"
                         ok-text="清空"
                         cancel-text="取消"
@@ -181,6 +194,16 @@ async function handleClearAllRecords() {
         notifySuccess(`已清空 ${deleted} 条请求记录`);
     } catch (error) {
         notifyRequestError(error, '清空请求记录失败');
+    }
+}
+
+async function handleCleanupRecords() {
+    try {
+        const deleted = await recordStore.cleanup();
+        await loadData();
+        notifySuccess(`已清理 ${deleted} 条请求记录`);
+    } catch (error) {
+        notifyRequestError(error, '清理请求记录失败');
     }
 }
 </script>
