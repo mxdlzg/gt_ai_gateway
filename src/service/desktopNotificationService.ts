@@ -30,6 +30,12 @@ const EVENT_DEFAULTS: Record<WakeupNotificationEvent, string> = {
     skipped: "false",
 };
 
+interface NotificationSendResult {
+    method: string;
+    stdout?: string;
+    stderr?: string;
+}
+
 const POWERSHELL_TOAST_SCRIPT = `
 $ErrorActionPreference = "Stop"
 $title = [Environment]::GetEnvironmentVariable("GT_TOAST_TITLE", "Process")
@@ -74,6 +80,23 @@ try {
 }
 `;
 
+const POWERSHELL_BALLOON_SCRIPT = `
+$ErrorActionPreference = "Stop"
+$title = [Environment]::GetEnvironmentVariable("GT_TOAST_TITLE", "Process")
+$body = [Environment]::GetEnvironmentVariable("GT_TOAST_BODY", "Process")
+
+Add-Type -AssemblyName System.Windows.Forms
+Add-Type -AssemblyName System.Drawing
+$notify = New-Object System.Windows.Forms.NotifyIcon
+$notify.Icon = [System.Drawing.SystemIcons]::Information
+$notify.BalloonTipTitle = $title
+$notify.BalloonTipText = $body
+$notify.Visible = $true
+$notify.ShowBalloonTip(5000)
+Start-Sleep -Seconds 6
+$notify.Dispose()
+`;
+
 
 function readBoolean(value: string | undefined, defaultValue: string): boolean {
     const raw = value === undefined || value === "" ? defaultValue : value;
@@ -97,15 +120,17 @@ async function isEnabled(event: WakeupNotificationEvent): Promise<boolean> {
 }
 
 
-function sendWindowsToast(title: string, body: string): Promise<void> {
+function runPowerShellNotificationScript(script: string, title: string, body: string, method: string): Promise<NotificationSendResult> {
     return new Promise((resolve, reject) => {
+        let stdout = "";
+        let stderr = "";
         const child = spawn("powershell.exe", [
             "-NoProfile",
             "-NonInteractive",
             "-ExecutionPolicy",
             "Bypass",
             "-Command",
-            POWERSHELL_TOAST_SCRIPT,
+            script,
         ], {
             env: {
                 ...process.env,
@@ -113,20 +138,46 @@ function sendWindowsToast(title: string, body: string): Promise<void> {
                 GT_TOAST_TITLE: title.slice(0, 120),
                 GT_TOAST_BODY: body.slice(0, 500),
             },
-            stdio: "ignore",
+            stdio: ["ignore", "pipe", "pipe"],
             windowsHide: true,
         });
 
+        child.stdout?.on("data", (chunk) => {
+            stdout += String(chunk);
+        });
+        child.stderr?.on("data", (chunk) => {
+            stderr += String(chunk);
+        });
         child.once("error", reject);
         child.once("exit", (code) => {
             if (code && code !== 0) {
-                reject(new Error(`Toast notification exited with code ${code}`));
+                const detail = stderr.trim() || stdout.trim();
+                reject(new Error(`${method} notification exited with code ${code}${detail ? `: ${detail}` : ""}`));
                 return;
             }
 
-            resolve();
+            resolve({
+                method,
+                stdout: stdout.trim() || undefined,
+                stderr: stderr.trim() || undefined,
+            });
         });
     });
+}
+
+
+async function sendWindowsNotification(title: string, body: string): Promise<NotificationSendResult> {
+    try {
+        return await runPowerShellNotificationScript(POWERSHELL_BALLOON_SCRIPT, title, body, "tray-balloon");
+    } catch (balloonError) {
+        try {
+            return await runPowerShellNotificationScript(POWERSHELL_TOAST_SCRIPT, title, body, "toast");
+        } catch (toastError) {
+            const balloonMessage = balloonError instanceof Error ? balloonError.message : String(balloonError);
+            const toastMessage = toastError instanceof Error ? toastError.message : String(toastError);
+            throw new Error(`Tray balloon failed: ${balloonMessage}; Toast failed: ${toastMessage}`);
+        }
+    }
 }
 
 
@@ -141,14 +192,14 @@ async function send(payload: NotificationPayload): Promise<void> {
     }
 
     try {
-        await sendWindowsToast(payload.title, payload.body);
+        await sendWindowsNotification(payload.title, payload.body);
     } catch (error) {
         console.warn("[Notification] Failed to show desktop notification:", error);
     }
 }
 
 
-async function test(): Promise<{ success: boolean; platform: string; error?: string }> {
+async function test(): Promise<{ success: boolean; platform: string; method?: string; error?: string }> {
     if (process.platform !== "win32") {
         return {
             success: false,
@@ -158,10 +209,11 @@ async function test(): Promise<{ success: boolean; platform: string; error?: str
     }
 
     try {
-        await sendWindowsToast("GT AI Gateway", "唤醒通知测试成功");
+        const result = await sendWindowsNotification("GT AI Gateway", "唤醒通知测试成功");
         return {
             success: true,
             platform: process.platform,
+            method: result.method,
         };
     } catch (error) {
         return {

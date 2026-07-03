@@ -201,6 +201,19 @@
                                         测试通知
                                     </a-button>
                                 </a-space>
+                                <div
+                                    v-if="notificationTestResult"
+                                    :class="[
+                                        'inline-test-result',
+                                        notificationTestResult.platform === 'pending'
+                                            ? 'pending'
+                                            : notificationTestResult.success
+                                                ? 'success'
+                                                : 'error',
+                                    ]"
+                                >
+                                    {{ notificationTestText }}
+                                </div>
                                 <a-space wrap>
                                     <a-checkbox v-model:checked="form.wakeup_notify_warmup_success" :disabled="saving || !form.wakeup_notification_enabled">
                                         唤醒成功
@@ -334,7 +347,7 @@
 import { onMounted, reactive, ref, computed } from 'vue';
 import { message } from 'ant-design-vue/es';
 import { getConfig, testNotification, testProxy, updateConfig } from '@/api/config';
-import type { ProxyTestResponse } from '@/api/config';
+import type { NotificationTestResponse, ProxyTestResponse } from '@/api/config';
 import { checkUpdate } from '@/api/system';
 import { useAppStore } from '@/stores/app';
 import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
@@ -352,6 +365,7 @@ const saving = ref(false);
 const testingProxy = ref(false);
 const testingNotification = ref(false);
 const proxyTestResult = ref<ProxyTestResponse | null>(null);
+const notificationTestResult = ref<NotificationTestResponse | null>(null);
 
 const DEFAULT_REDACTION_KEYS = 'authorization,x-api-key,api_key,apikey,access_token,refresh_token,token,password,secret,cookie,set-cookie';
 const DEFAULT_RETRY_STATUS_CODES = '429,500,502,503,504';
@@ -456,6 +470,19 @@ const proxyTestText = computed(() => {
         return `${proxyText} 可连接，HTTP ${result.status}，耗时 ${result.duration}ms`;
     }
     return `${proxyText} 测试失败：${result.error || '未知错误'}`;
+});
+
+const notificationTestText = computed(() => {
+    const result = notificationTestResult.value;
+    if (!result) return '';
+    if (result.platform === 'pending') {
+        return '正在发送测试通知...';
+    }
+    if (result.success) {
+        return `测试通知已发送，平台 ${result.platform}${result.method ? `，方式 ${result.method}` : ''}`;
+    }
+
+    return `测试通知失败，平台 ${result.platform || 'unknown'}：${result.error || '未知错误'}`;
 });
 
 const lastCleanupText = computed(() => {
@@ -628,16 +655,28 @@ async function handleTestProxy() {
 
 async function handleTestNotification() {
     testingNotification.value = true;
+    notificationTestResult.value = {
+        success: true,
+        platform: 'pending',
+        method: 'sending',
+    };
     try {
         const result = await testNotification();
+        notificationTestResult.value = result;
         if (result.success) {
-            message.success('测试通知已发送');
+            message.success(notificationTestText.value);
             return;
         }
 
-        message.error(result.error || `当前平台不支持系统通知：${result.platform}`);
+        message.error(notificationTestText.value);
     } catch (error: any) {
-        message.error(error?.message || '测试通知失败');
+        const detail = error?.data || error;
+        notificationTestResult.value = {
+            success: false,
+            platform: detail?.platform || 'unknown',
+            error: detail?.error || error?.message || '测试通知失败',
+        };
+        message.error(notificationTestText.value);
     } finally {
         testingNotification.value = false;
     }
@@ -817,18 +856,25 @@ async function saveConfig() {
     flex-shrink: 0;
 }
 
-.proxy-test-result {
+.proxy-test-result,
+.inline-test-result {
     margin-top: 6px;
     font-size: 12px;
     line-height: 1.4;
     word-break: break-word;
 }
 
-.proxy-test-result.success {
+.proxy-test-result.success,
+.inline-test-result.success {
     color: #389e0d;
 }
 
-.proxy-test-result.error {
+.inline-test-result.pending {
+    color: var(--text-secondary, #8c8c8c);
+}
+
+.proxy-test-result.error,
+.inline-test-result.error {
     color: #cf1322;
 }
 

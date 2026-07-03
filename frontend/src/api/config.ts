@@ -29,6 +29,7 @@ export async function testProxy(proxyUrl?: string): Promise<ProxyTestResponse> {
 export interface NotificationTestResponse {
     success: boolean;
     platform: string;
+    method?: string;
     error?: string;
 }
 
