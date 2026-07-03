@@ -13,6 +13,7 @@ import statsController from "./controller/statsController";
 import balanceController from "./controller/balanceController";
 import configController from "./controller/configController";
 import clientConfigController from "./controller/clientConfigController";
+import wakeupController from "./controller/wakeupController";
 import configService from "./service/configService";
 import ormService from "./service/ormService";
 import authMiddleware from "./middleware/authMiddleware";
@@ -95,6 +96,7 @@ app.get("/update.json", authMiddleware.requireAdmin, systemController.checkUpdat
 app.get("/config.json", authMiddleware.requireAdmin, configController.getConfig);
 app.put("/config.json", authMiddleware.requireAdmin, configController.updateConfig);
 app.post("/config/proxy/test.json", authMiddleware.requireAdmin, configController.testProxy);
+app.post("/config/notification/test.json", authMiddleware.requireAdmin, configController.testNotification);
 app.get("/client-config/status.json", authMiddleware.requireAdmin, clientConfigController.status);
 app.get("/client-config/local.json", authMiddleware.requireAdmin, clientConfigController.readLocal);
 app.post("/client-config/create.json", authMiddleware.requireAdmin, clientConfigController.create);
@@ -104,6 +106,21 @@ app.post("/client-config/backup/delete.json", authMiddleware.requireAdmin, clien
 app.post("/client-config/backup/update.json", authMiddleware.requireAdmin, clientConfigController.updateBackup);
 app.post("/client-config/apply.json", authMiddleware.requireAdmin, clientConfigController.apply);
 app.post("/client-config/sync-from-local.json", authMiddleware.requireAdmin, clientConfigController.syncFromLocal);
+
+// Wakeup / Keepalive (需要管理员权限)
+app.get("/wakeup/job/list.json", authMiddleware.requireAdmin, wakeupController.listJobs);
+app.get("/wakeup/job/detail.json", authMiddleware.requireAdmin, wakeupController.getJob);
+app.post("/wakeup/job/create.json", authMiddleware.requireAdmin, wakeupController.createJob);
+app.put("/wakeup/job/update.json", authMiddleware.requireAdmin, wakeupController.updateJob);
+app.delete("/wakeup/job/delete.json", authMiddleware.requireAdmin, wakeupController.deleteJob);
+app.post("/wakeup/job/toggle.json", authMiddleware.requireAdmin, wakeupController.toggleJob);
+app.post("/wakeup/job/run.json", authMiddleware.requireAdmin, wakeupController.runJob);
+app.get("/wakeup/log/list.json", authMiddleware.requireAdmin, wakeupController.listLogs);
+app.delete("/wakeup/log/clear.json", authMiddleware.requireAdmin, wakeupController.clearLogs);
+app.get("/wakeup/prompt-categories.json", authMiddleware.requireAdmin, wakeupController.getPromptCategories);
+app.get("/wakeup/prompt-templates.json", authMiddleware.requireAdmin, wakeupController.getPromptTemplates);
+app.put("/wakeup/prompt-templates.json", authMiddleware.requireAdmin, wakeupController.updatePromptTemplates);
+app.post("/wakeup/prompt-templates/reset.json", authMiddleware.requireAdmin, wakeupController.resetPromptTemplates);
 
 // Vendor (需要管理员权限)
 app.get("/vendor/preset-urls.json", authMiddleware.requireAdmin, vendorController.getPresetUrls);

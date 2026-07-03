@@ -19,6 +19,12 @@ export interface ConfigMap {
     host_key: string;
     upstream_proxy_url: string;
     test_request_timeout_ms: string;
+    wakeup_notification_enabled: string;
+    wakeup_notify_warmup_success: string;
+    wakeup_notify_warmup_failure: string;
+    wakeup_notify_keepalive_failure: string;
+    wakeup_notify_rate_limited: string;
+    wakeup_notify_skipped: string;
     [key: string]: string;
 }
 
@@ -43,5 +49,11 @@ export interface UpdateConfigRequest {
     host_key?: string;
     upstream_proxy_url?: string;
     test_request_timeout_ms?: string;
+    wakeup_notification_enabled?: string;
+    wakeup_notify_warmup_success?: string;
+    wakeup_notify_warmup_failure?: string;
+    wakeup_notify_keepalive_failure?: string;
+    wakeup_notify_rate_limited?: string;
+    wakeup_notify_skipped?: string;
     [key: string]: string | undefined;
 }

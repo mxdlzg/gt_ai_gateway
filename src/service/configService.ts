@@ -20,6 +20,14 @@ export enum ConfigKey {
     ROUTING_SELECTION_STRATEGY = "routing_selection_strategy",
     HOST_KEY = "host_key",
     UPSTREAM_PROXY_URL = "upstream_proxy_url",
+    TEST_REQUEST_TIMEOUT_MS = "test_request_timeout_ms",
+    WAKEUP_PROMPT_TEMPLATES = "wakeup_prompt_templates",
+    WAKEUP_NOTIFICATION_ENABLED = "wakeup_notification_enabled",
+    WAKEUP_NOTIFY_WARMUP_SUCCESS = "wakeup_notify_warmup_success",
+    WAKEUP_NOTIFY_WARMUP_FAILURE = "wakeup_notify_warmup_failure",
+    WAKEUP_NOTIFY_KEEPALIVE_FAILURE = "wakeup_notify_keepalive_failure",
+    WAKEUP_NOTIFY_RATE_LIMITED = "wakeup_notify_rate_limited",
+    WAKEUP_NOTIFY_SKIPPED = "wakeup_notify_skipped",
 }
 
 export class ConfigItem {

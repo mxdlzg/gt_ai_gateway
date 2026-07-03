@@ -35,6 +35,10 @@
                     <ExperimentOutlined />
                     <span>API 测试</span>
                 </a-menu-item>
+                <a-menu-item key="/wakeup">
+                    <ClockCircleOutlined />
+                    <span>唤醒保活</span>
+                </a-menu-item>
                 <a-menu-item key="/integration">
                     <LinkOutlined />
                     <span>接入配置</span>
@@ -87,7 +91,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue';
 import { useRouter, useRoute } from 'vue-router';
-import { DashboardOutlined, UserOutlined, ApiOutlined, SettingOutlined, FileTextOutlined, ExperimentOutlined, MenuFoldOutlined, MenuUnfoldOutlined, LinkOutlined, DollarOutlined, ControlOutlined, CodeOutlined, AppstoreAddOutlined } from '@ant-design/icons-vue';
+import { DashboardOutlined, UserOutlined, ApiOutlined, SettingOutlined, FileTextOutlined, ExperimentOutlined, MenuFoldOutlined, MenuUnfoldOutlined, LinkOutlined, DollarOutlined, ControlOutlined, CodeOutlined, AppstoreAddOutlined, ClockCircleOutlined } from '@ant-design/icons-vue';
 import { useAppStore } from '@/stores/app';
 import { checkUpdate } from '@/api/system';
 
@@ -109,6 +113,7 @@ const selectedKeys = computed(() => {
     if (path.startsWith('/record')) return ['/record'];
     if (path.startsWith('/balance')) return ['/balance'];
     if (path.startsWith('/api-test')) return ['/api-test'];
+    if (path.startsWith('/wakeup')) return ['/wakeup'];
     if (path.startsWith('/integration')) return ['/integration'];
     if (path.startsWith('/client-manager')) return ['/client-manager'];
     if (path.startsWith('/advanced-settings')) return ['/advanced-settings'];

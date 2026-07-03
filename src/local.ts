@@ -6,6 +6,7 @@ import { readFileSync } from "fs";
 import ormService from "./service/ormService";
 import recordService from "./service/recordService";
 import hostService from "./service/hostService";
+import wakeupService from "./service/wakeupService";
 import app, { Env } from "./routes";
 import initLogger, { Logger } from "./util/logger";
 
@@ -96,6 +97,9 @@ async function startServer() {
     
     // 校验数据库表结构
     await ormService.verifySchema();
+
+    // Node 本地模式支持常驻定时任务；Worker 模式仅支持手动触发接口。
+    wakeupService.startScheduler();
 
     // 启动服务器
     const port = parseInt(hostService.getLocalPort(), 10);

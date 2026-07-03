@@ -25,3 +25,13 @@ export async function testProxy(proxyUrl?: string): Promise<ProxyTestResponse> {
         proxy_url: proxyUrl?.trim() || undefined,
     });
 }
+
+export interface NotificationTestResponse {
+    success: boolean;
+    platform: string;
+    error?: string;
+}
+
+export async function testNotification(): Promise<NotificationTestResponse> {
+    return request.post('/config/notification/test.json');
+}

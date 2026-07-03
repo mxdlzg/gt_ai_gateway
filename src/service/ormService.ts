@@ -179,7 +179,9 @@ class ORMService {
         "user",
         "vendor",
         "vendor_model",
-        "model_provider_route"
+        "model_provider_route",
+        "vendor_wakeup_job",
+        "vendor_wakeup_log"
     ];
 
     async verifySchema(): Promise<void> {

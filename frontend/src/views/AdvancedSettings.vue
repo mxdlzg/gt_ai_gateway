@@ -179,6 +179,48 @@
                             />
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">唤醒通知</div>
+                            <div class="setting-desc">启用后，Windows 打包版会在模型唤醒成功、保活失败、429 等事件发生时弹出系统通知</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-space direction="vertical" style="width: 100%">
+                                <a-space wrap>
+                                    <a-switch
+                                        v-model:checked="form.wakeup_notification_enabled"
+                                        :disabled="saving"
+                                        checked-children="开启"
+                                        un-checked-children="关闭"
+                                    />
+                                    <a-button
+                                        :loading="testingNotification"
+                                        :disabled="saving"
+                                        @click="handleTestNotification"
+                                    >
+                                        测试通知
+                                    </a-button>
+                                </a-space>
+                                <a-space wrap>
+                                    <a-checkbox v-model:checked="form.wakeup_notify_warmup_success" :disabled="saving || !form.wakeup_notification_enabled">
+                                        唤醒成功
+                                    </a-checkbox>
+                                    <a-checkbox v-model:checked="form.wakeup_notify_warmup_failure" :disabled="saving || !form.wakeup_notification_enabled">
+                                        唤醒失败
+                                    </a-checkbox>
+                                    <a-checkbox v-model:checked="form.wakeup_notify_keepalive_failure" :disabled="saving || !form.wakeup_notification_enabled">
+                                        保活失败
+                                    </a-checkbox>
+                                    <a-checkbox v-model:checked="form.wakeup_notify_rate_limited" :disabled="saving || !form.wakeup_notification_enabled">
+                                        429 限流
+                                    </a-checkbox>
+                                    <a-checkbox v-model:checked="form.wakeup_notify_skipped" :disabled="saving || !form.wakeup_notification_enabled">
+                                        任务跳过
+                                    </a-checkbox>
+                                </a-space>
+                            </a-space>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -291,7 +333,7 @@
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed } from 'vue';
 import { message } from 'ant-design-vue/es';
-import { getConfig, testProxy, updateConfig } from '@/api/config';
+import { getConfig, testNotification, testProxy, updateConfig } from '@/api/config';
 import type { ProxyTestResponse } from '@/api/config';
 import { checkUpdate } from '@/api/system';
 import { useAppStore } from '@/stores/app';
@@ -308,6 +350,7 @@ const latestVersion = ref('');
 const loading = ref(false);
 const saving = ref(false);
 const testingProxy = ref(false);
+const testingNotification = ref(false);
 const proxyTestResult = ref<ProxyTestResponse | null>(null);
 
 const DEFAULT_REDACTION_KEYS = 'authorization,x-api-key,api_key,apikey,access_token,refresh_token,token,password,secret,cookie,set-cookie';
@@ -338,6 +381,12 @@ const originalConfig = reactive({
     routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+    wakeup_notification_enabled: false,
+    wakeup_notify_warmup_success: true,
+    wakeup_notify_warmup_failure: true,
+    wakeup_notify_keepalive_failure: true,
+    wakeup_notify_rate_limited: true,
+    wakeup_notify_skipped: false,
 });
 
 const form = reactive({
@@ -360,6 +409,12 @@ const form = reactive({
     routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+    wakeup_notification_enabled: false,
+    wakeup_notify_warmup_success: true,
+    wakeup_notify_warmup_failure: true,
+    wakeup_notify_keepalive_failure: true,
+    wakeup_notify_rate_limited: true,
+    wakeup_notify_skipped: false,
 });
 
 const configKeys = [
@@ -381,6 +436,12 @@ const configKeys = [
     'routing_selection_strategy',
     'upstream_proxy_url',
     'test_request_timeout_seconds',
+    'wakeup_notification_enabled',
+    'wakeup_notify_warmup_success',
+    'wakeup_notify_warmup_failure',
+    'wakeup_notify_keepalive_failure',
+    'wakeup_notify_rate_limited',
+    'wakeup_notify_skipped',
 ] as const;
 
 const isDirty = computed(() => {
@@ -485,6 +546,25 @@ async function loadConfig(): Promise<void> {
         const timeoutMs = setRequestTimeoutMs(config.test_request_timeout_ms || DEFAULT_REQUEST_TIMEOUT_MS);
         form.test_request_timeout_seconds = Math.round(timeoutMs / 1000);
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
+
+        form.wakeup_notification_enabled = readBoolean(config.wakeup_notification_enabled, false);
+        originalConfig.wakeup_notification_enabled = form.wakeup_notification_enabled;
+
+        form.wakeup_notify_warmup_success = readBoolean(config.wakeup_notify_warmup_success, true);
+        originalConfig.wakeup_notify_warmup_success = form.wakeup_notify_warmup_success;
+
+        form.wakeup_notify_warmup_failure = readBoolean(config.wakeup_notify_warmup_failure, true);
+        originalConfig.wakeup_notify_warmup_failure = form.wakeup_notify_warmup_failure;
+
+        form.wakeup_notify_keepalive_failure = readBoolean(config.wakeup_notify_keepalive_failure, true);
+        originalConfig.wakeup_notify_keepalive_failure = form.wakeup_notify_keepalive_failure;
+
+        form.wakeup_notify_rate_limited = readBoolean(config.wakeup_notify_rate_limited, true);
+        originalConfig.wakeup_notify_rate_limited = form.wakeup_notify_rate_limited;
+
+        form.wakeup_notify_skipped = readBoolean(config.wakeup_notify_skipped, false);
+        originalConfig.wakeup_notify_skipped = form.wakeup_notify_skipped;
+
         if (!appStore.version) {
             appStore.fetchVersion();
         }
@@ -513,6 +593,12 @@ function cancelChanges() {
     form.routing_selection_strategy = originalConfig.routing_selection_strategy;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
+    form.wakeup_notification_enabled = originalConfig.wakeup_notification_enabled;
+    form.wakeup_notify_warmup_success = originalConfig.wakeup_notify_warmup_success;
+    form.wakeup_notify_warmup_failure = originalConfig.wakeup_notify_warmup_failure;
+    form.wakeup_notify_keepalive_failure = originalConfig.wakeup_notify_keepalive_failure;
+    form.wakeup_notify_rate_limited = originalConfig.wakeup_notify_rate_limited;
+    form.wakeup_notify_skipped = originalConfig.wakeup_notify_skipped;
 }
 
 async function handleTestProxy() {
@@ -537,6 +623,23 @@ async function handleTestProxy() {
         message.error(proxyTestText.value);
     } finally {
         testingProxy.value = false;
+    }
+}
+
+async function handleTestNotification() {
+    testingNotification.value = true;
+    try {
+        const result = await testNotification();
+        if (result.success) {
+            message.success('测试通知已发送');
+            return;
+        }
+
+        message.error(result.error || `当前平台不支持系统通知：${result.platform}`);
+    } catch (error: any) {
+        message.error(error?.message || '测试通知失败');
+    } finally {
+        testingNotification.value = false;
     }
 }
 
@@ -594,6 +697,12 @@ async function saveConfig() {
             routing_selection_strategy: form.routing_selection_strategy,
             upstream_proxy_url: form.upstream_proxy_url.trim(),
             test_request_timeout_ms: String(Math.max(1, form.test_request_timeout_seconds) * 1000),
+            wakeup_notification_enabled: form.wakeup_notification_enabled ? "true" : "false",
+            wakeup_notify_warmup_success: form.wakeup_notify_warmup_success ? "true" : "false",
+            wakeup_notify_warmup_failure: form.wakeup_notify_warmup_failure ? "true" : "false",
+            wakeup_notify_keepalive_failure: form.wakeup_notify_keepalive_failure ? "true" : "false",
+            wakeup_notify_rate_limited: form.wakeup_notify_rate_limited ? "true" : "false",
+            wakeup_notify_skipped: form.wakeup_notify_skipped ? "true" : "false",
         });
         message.success('配置已保存');
         originalConfig.cch_rewrite_enabled = form.cch_rewrite_enabled;
@@ -614,6 +723,12 @@ async function saveConfig() {
         originalConfig.routing_selection_strategy = form.routing_selection_strategy;
         originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
+        originalConfig.wakeup_notification_enabled = form.wakeup_notification_enabled;
+        originalConfig.wakeup_notify_warmup_success = form.wakeup_notify_warmup_success;
+        originalConfig.wakeup_notify_warmup_failure = form.wakeup_notify_warmup_failure;
+        originalConfig.wakeup_notify_keepalive_failure = form.wakeup_notify_keepalive_failure;
+        originalConfig.wakeup_notify_rate_limited = form.wakeup_notify_rate_limited;
+        originalConfig.wakeup_notify_skipped = form.wakeup_notify_skipped;
         setRequestTimeoutMs(originalConfig.test_request_timeout_seconds * 1000);
         form.request_record_redaction_keys = originalConfig.request_record_redaction_keys;
         form.request_record_retention_days = originalConfig.request_record_retention_days;

@@ -3,6 +3,7 @@ import configService, { ConfigKey } from "../service/configService";
 import hostService from "../service/hostService";
 import senderService from "../service/senderService";
 import ormService from "../service/ormService";
+import desktopNotificationService from "../service/desktopNotificationService";
 
 async function getConfig(c: Context) {
     await hostService.getHostKey();
@@ -65,8 +66,14 @@ async function testProxy(c: Context) {
     }
 }
 
+
+async function testNotification(c: Context) {
+    return c.json(await desktopNotificationService.test());
+}
+
 export default {
     getConfig,
+    testNotification,
     updateConfig,
     testProxy,
 };

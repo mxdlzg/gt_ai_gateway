@@ -22,6 +22,7 @@ import BalanceIndex from '@/views/Balance/Index.vue';
 import ApiTestIndex from '@/views/ApiTest/Index.vue';
 import IntegrationIndex from '@/views/Integration/Index.vue';
 import ClientManager from '@/views/ClientManager.vue';
+import WakeupIndex from '@/views/Wakeup/Index.vue';
 import AdvancedSettings from '@/views/AdvancedSettings.vue';
 import Developer from '@/views/Developer.vue';
 
@@ -133,6 +134,12 @@ const routes: RouteRecordRaw[] = [
                 name: 'ApiTest',
                 component: ApiTestIndex,
                 meta: { title: 'API 测试' },
+            },
+            {
+                path: 'wakeup',
+                name: 'Wakeup',
+                component: WakeupIndex,
+                meta: { title: '唤醒保活' },
             },
             {
                 path: 'integration',
