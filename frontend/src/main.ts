@@ -34,13 +34,11 @@ async function loadDesktopRuntimeConfig(): Promise<boolean> {
             invoke<string>('get_auth_token'),
         ]);
 
-        console.log('[main] invoke result: url=' + url + ' token=' + (token || 'empty'));
         if (url) {
             setBaseURL(url);
         }
 
         if (token) {
-            console.log('[main] calling setAuthToken with token=' + token.substring(0, 8) + '...');
             setAuthToken(token, { persist: false });
         }
     } catch (e) {

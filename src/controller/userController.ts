@@ -66,7 +66,7 @@ async function createUser(c: Context) {
             token = crypto.randomUUID();
         }
 
-        console.log("[userController] Creating user:", { name, token, type });
+        console.log("[userController] Creating user:", { name, type });
 
         const instance = await SgUser.query().create({
             name,
@@ -76,7 +76,7 @@ async function createUser(c: Context) {
             status: UserStatus.ACTIVE,
         });
 
-        console.log("[userController] User created successfully:", instance);
+        console.log("[userController] User created successfully:", { id: instance.id, name: instance.name, type: instance.type });
         return c.json(instance);
     } catch (error) {
         console.error("[userController] Error creating user:", error);

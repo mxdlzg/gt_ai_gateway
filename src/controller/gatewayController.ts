@@ -34,20 +34,18 @@ async function getUserByBearerToken(c: Context): Promise<SgUser> {
 
 async function chatCompletions(c: Context) {
     c.set("api_format", ApiFormat.OPENAI);
-    let body: string = await c.req.text();
-    console.log("body:", body);
+    const body: string = await c.req.text();
 
     //获取用户
     const user = await getUserByBearerToken(c);
 
     //解析请求
-    let bodyDict = JSON.parse(body);
-    console.log("bodyDict:", bodyDict, typeof bodyDict);
+    const bodyDict = JSON.parse(body);
 
     //获取后端模型配置
-    let modelName = bodyDict.model;
-    let modelConfig: SgModel | null = await modelService.getModel(modelName, true);
-    console.log("modelConfig:", modelConfig);
+    const modelName = bodyDict.model;
+    console.log("[gatewayController] OpenAI chat request:", { model: modelName, user_id: user.id });
+    const modelConfig: SgModel | null = await modelService.getModel(modelName, true);
 
     if (modelConfig == null) {
         throw new customError.NotFoundError("model not found");
@@ -58,8 +56,7 @@ async function chatCompletions(c: Context) {
 
 async function anthropicMessages(c: Context) {
     c.set("api_format", ApiFormat.ANTHROPIC);
-    let body: string = await c.req.text();
-    console.log("body:", body);
+    const body: string = await c.req.text();
 
     //获取用户
     const apiKey = c.req.header("x-api-key");
@@ -88,13 +85,12 @@ async function anthropicMessages(c: Context) {
     }
 
     //解析请求
-    let bodyDict = JSON.parse(body);
-    console.log("bodyDict:", bodyDict, typeof bodyDict);
+    const bodyDict = JSON.parse(body);
 
     //获取后端模型配置
-    let modelName = bodyDict.model;
-    let modelConfig: SgModel | null = await modelService.getModel(modelName, true);
-    console.log("modelConfig:", modelConfig);
+    const modelName = bodyDict.model;
+    console.log("[gatewayController] Anthropic messages request:", { model: modelName, user_id: user.id });
+    const modelConfig: SgModel | null = await modelService.getModel(modelName, true);
 
     if (modelConfig == null) {
         throw new customError.NotFoundError("model not found");
@@ -105,12 +101,13 @@ async function anthropicMessages(c: Context) {
 
 async function responsesApi(c: Context) {
     c.set("api_format", ApiFormat.RESPONSES);
-    let body: string = await c.req.text();
+    const body: string = await c.req.text();
 
     const user = await getUserByBearerToken(c);
 
-    let bodyDict = JSON.parse(body);
+    const bodyDict = JSON.parse(body);
     const modelName = bodyDict.model;
+    console.log("[gatewayController] Responses request:", { model: modelName, user_id: user.id });
     const modelConfig: SgModel | null = await modelService.getModel(modelName, true);
     if (modelConfig == null) {
         throw new customError.NotFoundError("model not found");

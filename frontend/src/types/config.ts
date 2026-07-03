@@ -19,6 +19,11 @@ export interface ConfigMap {
     host_key: string;
     upstream_proxy_url: string;
     test_request_timeout_ms: string;
+    log_file_enabled: string;
+    log_file_level: string;
+    log_retention_days: string;
+    log_max_files: string;
+    stream_log_enabled: string;
     wakeup_notification_enabled: string;
     wakeup_notify_warmup_success: string;
     wakeup_notify_warmup_failure: string;
@@ -49,6 +54,11 @@ export interface UpdateConfigRequest {
     host_key?: string;
     upstream_proxy_url?: string;
     test_request_timeout_ms?: string;
+    log_file_enabled?: string;
+    log_file_level?: string;
+    log_retention_days?: string;
+    log_max_files?: string;
+    stream_log_enabled?: string;
     wakeup_notification_enabled?: string;
     wakeup_notify_warmup_success?: string;
     wakeup_notify_warmup_failure?: string;

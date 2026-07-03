@@ -35,3 +35,35 @@ export interface UpdateStatusResponse {
     release_notes?: string;
     error_message?: string;
 }
+
+export interface LogFileInfo {
+    name: string;
+    path: string;
+    size: number;
+    modified_at: string;
+}
+
+export interface LogStatusResponse {
+    supported: boolean;
+    log_dir: string;
+    file_enabled: boolean;
+    file_level: string;
+    retention_days: number;
+    max_files: number;
+    stream_log_enabled: boolean;
+    total_files: number;
+    total_size: number;
+    files: LogFileInfo[];
+}
+
+export interface LogCleanupResponse {
+    success: boolean;
+    deleted: number;
+    error?: string;
+}
+
+export interface OpenLogDirResponse {
+    success: boolean;
+    path?: string;
+    error?: string;
+}

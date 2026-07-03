@@ -4,6 +4,7 @@ import hostService from "../service/hostService";
 import senderService from "../service/senderService";
 import ormService from "../service/ormService";
 import desktopNotificationService from "../service/desktopNotificationService";
+import logService from "../service/logService";
 
 async function getConfig(c: Context) {
     await hostService.getHostKey();
@@ -12,7 +13,9 @@ async function getConfig(c: Context) {
 
 async function updateConfig(c: Context) {
     const body = await c.req.json();
-    return c.json(await configService.updateAll(body));
+    const result = await configService.updateAll(body);
+    await logService.applyRuntimeConfig();
+    return c.json(result);
 }
 
 async function testProxy(c: Context) {

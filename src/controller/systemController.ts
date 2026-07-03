@@ -104,6 +104,7 @@ async function status(c: Context) {
 }
 
 import updateService from "../service/updateService";
+import logService from "../service/logService";
 
 async function checkUpdate(c: Context) {
     const force = c.req.query('force') === '1' || c.req.query('force') === 'true';
@@ -111,8 +112,28 @@ async function checkUpdate(c: Context) {
     return c.json(status);
 }
 
+async function logStatus(c: Context) {
+    return c.json(await logService.status());
+}
+
+async function openLogDir(c: Context) {
+    return c.json(await logService.openLogDir());
+}
+
+async function cleanupLogs(c: Context) {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(await logService.cleanup({
+        older_than_days: Number.isFinite(Number(body.older_than_days)) ? Number(body.older_than_days) : undefined,
+        keep_latest: Number.isFinite(Number(body.keep_latest)) ? Number(body.keep_latest) : undefined,
+        clear_all: body.clear_all === true,
+    }));
+}
+
 export default {
     welcome,
     status,
     checkUpdate,
+    cleanupLogs,
+    logStatus,
+    openLogDir,
 };

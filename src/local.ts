@@ -7,6 +7,7 @@ import ormService from "./service/ormService";
 import recordService from "./service/recordService";
 import hostService from "./service/hostService";
 import wakeupService from "./service/wakeupService";
+import logService from "./service/logService";
 import app, { Env } from "./routes";
 import initLogger, { Logger } from "./util/logger";
 
@@ -68,25 +69,25 @@ async function startServer() {
     console.log = (...args: unknown[]) => {
         originalConsole.log(...args);
         const message = args.map(formatConsoleArg).join(" ");
-        logger["write"]("info", message);
+        logger.write("info", message);
     };
 
     console.error = (...args: unknown[]) => {
         originalConsole.error(...args);
         const message = args.map(formatConsoleArg).join(" ");
-        logger["write"]("error", message);
+        logger.write("error", message);
     };
 
     console.warn = (...args: unknown[]) => {
         originalConsole.warn(...args);
         const message = args.map(formatConsoleArg).join(" ");
-        logger["write"]("warn", message);
+        logger.write("warn", message);
     };
 
     console.debug = (...args: unknown[]) => {
         originalConsole.debug(...args);
         const message = args.map(formatConsoleArg).join(" ");
-        logger["write"]("debug", message);
+        logger.write("debug", message);
     };
 
     // 初始化本地配置
@@ -94,6 +95,7 @@ async function startServer() {
         mode: "node",
         dbPath: DB_PATH,
     });
+    await logService.applyRuntimeConfig();
     
     // 校验数据库表结构
     await ormService.verifySchema();
@@ -176,7 +178,7 @@ async function startServer() {
     });
 
     server.on('listening', () => {
-        console.log(`ROOT_TOKEN: ${bindings.ROOT_TOKEN}`);
+        console.log(`ROOT_TOKEN: ${bindings.ROOT_TOKEN ? "configured" : "empty"}`);
         // Bypass Node.js stdout block-buffering for pipes by using writeSync
         require('fs').writeSync(1, `Server listening on http://${hostname}:${port}\n`);
     });

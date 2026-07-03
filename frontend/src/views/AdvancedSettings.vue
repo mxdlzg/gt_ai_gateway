@@ -234,6 +234,58 @@
                             </a-space>
                         </div>
                     </div>
+                    <div class="setting-item">
+                        <div class="setting-info">
+                            <div class="setting-title">系统日志</div>
+                            <div class="setting-desc">控制本地 log 目录中的运行日志写出等级；流式调试日志会额外保存上游流和转换后请求体，默认关闭</div>
+                        </div>
+                        <div class="setting-action setting-input">
+                            <a-space direction="vertical" style="width: 100%">
+                                <a-space wrap>
+                                    <a-switch
+                                        v-model:checked="form.log_file_enabled"
+                                        :disabled="saving"
+                                        checked-children="写入"
+                                        un-checked-children="关闭"
+                                    />
+                                    <a-select
+                                        v-model:value="form.log_file_level"
+                                        :options="logLevelOptions"
+                                        :disabled="saving || !form.log_file_enabled"
+                                        style="width: 120px"
+                                    />
+                                    <a-button :loading="openingLogDir" @click="handleOpenLogDir">
+                                        打开文件夹
+                                    </a-button>
+                                </a-space>
+                                <a-space wrap>
+                                    <a-input-number
+                                        v-model:value="form.log_retention_days"
+                                        :disabled="saving"
+                                        :min="0"
+                                        :precision="0"
+                                        addon-before="保留天数"
+                                        style="width: 160px"
+                                    />
+                                    <a-input-number
+                                        v-model:value="form.log_max_files"
+                                        :disabled="saving"
+                                        :min="0"
+                                        :precision="0"
+                                        addon-before="最多文件"
+                                        style="width: 160px"
+                                    />
+                                    <a-button :loading="cleaningLogs" @click="handleCleanupLogs">
+                                        清理旧日志
+                                    </a-button>
+                                </a-space>
+                                <a-checkbox v-model:checked="form.stream_log_enabled" :disabled="saving">
+                                    开启流式调试日志
+                                </a-checkbox>
+                                <div v-if="logStatusText" class="setting-extra">{{ logStatusText }}</div>
+                            </a-space>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -348,7 +400,8 @@ import { onMounted, reactive, ref, computed } from 'vue';
 import { message } from 'ant-design-vue/es';
 import { getConfig, testNotification, testProxy, updateConfig } from '@/api/config';
 import type { NotificationTestResponse, ProxyTestResponse } from '@/api/config';
-import { checkUpdate } from '@/api/system';
+import { checkUpdate, cleanupLogs, getLogStatus, openLogDir } from '@/api/system';
+import type { LogStatusResponse } from '@/types/system';
 import { useAppStore } from '@/stores/app';
 import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
 
@@ -364,8 +417,11 @@ const loading = ref(false);
 const saving = ref(false);
 const testingProxy = ref(false);
 const testingNotification = ref(false);
+const openingLogDir = ref(false);
+const cleaningLogs = ref(false);
 const proxyTestResult = ref<ProxyTestResponse | null>(null);
 const notificationTestResult = ref<NotificationTestResponse | null>(null);
+const logStatus = ref<LogStatusResponse | null>(null);
 
 const DEFAULT_REDACTION_KEYS = 'authorization,x-api-key,api_key,apikey,access_token,refresh_token,token,password,secret,cookie,set-cookie';
 const DEFAULT_RETRY_STATUS_CODES = '429,500,502,503,504';
@@ -373,6 +429,13 @@ const routingStrategyOptions = [
     { label: '优先级 + 权重', value: 'priority_weight' },
     { label: '延迟优先', value: 'latency' },
     { label: '价格优先', value: 'cost' },
+];
+const logLevelOptions = [
+    { label: 'Debug', value: 'debug' },
+    { label: 'Info', value: 'info' },
+    { label: 'Warn', value: 'warn' },
+    { label: 'Error', value: 'error' },
+    { label: '关闭', value: 'off' },
 ];
 
 const originalConfig = reactive({
@@ -395,6 +458,11 @@ const originalConfig = reactive({
     routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+    log_file_enabled: true,
+    log_file_level: 'info',
+    log_retention_days: 14,
+    log_max_files: 30,
+    stream_log_enabled: false,
     wakeup_notification_enabled: false,
     wakeup_notify_warmup_success: true,
     wakeup_notify_warmup_failure: true,
@@ -423,6 +491,11 @@ const form = reactive({
     routing_selection_strategy: 'priority_weight',
     upstream_proxy_url: '',
     test_request_timeout_seconds: DEFAULT_REQUEST_TIMEOUT_MS / 1000,
+    log_file_enabled: true,
+    log_file_level: 'info',
+    log_retention_days: 14,
+    log_max_files: 30,
+    stream_log_enabled: false,
     wakeup_notification_enabled: false,
     wakeup_notify_warmup_success: true,
     wakeup_notify_warmup_failure: true,
@@ -450,6 +523,11 @@ const configKeys = [
     'routing_selection_strategy',
     'upstream_proxy_url',
     'test_request_timeout_seconds',
+    'log_file_enabled',
+    'log_file_level',
+    'log_retention_days',
+    'log_max_files',
+    'stream_log_enabled',
     'wakeup_notification_enabled',
     'wakeup_notify_warmup_success',
     'wakeup_notify_warmup_failure',
@@ -491,6 +569,13 @@ const lastCleanupText = computed(() => {
     return `上次清理：${formatCleanupTime(value)}`;
 });
 
+const logStatusText = computed(() => {
+    const status = logStatus.value;
+    if (!status) return '';
+    const sizeText = formatBytes(status.total_size);
+    return `${status.log_dir}，${status.total_files} 个日志文件，${sizeText}`;
+});
+
 onMounted(() => {
     void loadConfig();
 });
@@ -510,6 +595,20 @@ function formatCleanupTime(value: string): string {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
     return date.toLocaleString();
+}
+
+function formatBytes(value: number): string {
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+async function loadLogStatus(): Promise<void> {
+    try {
+        logStatus.value = await getLogStatus();
+    } catch {
+        logStatus.value = null;
+    }
 }
 
 async function loadConfig(): Promise<void> {
@@ -574,6 +673,23 @@ async function loadConfig(): Promise<void> {
         form.test_request_timeout_seconds = Math.round(timeoutMs / 1000);
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
 
+        form.log_file_enabled = readBoolean(config.log_file_enabled, true);
+        originalConfig.log_file_enabled = form.log_file_enabled;
+
+        form.log_file_level = config.log_file_level || 'info';
+        originalConfig.log_file_level = form.log_file_level;
+
+        form.log_retention_days = readNumber(config.log_retention_days, 14);
+        originalConfig.log_retention_days = form.log_retention_days;
+
+        form.log_max_files = readNumber(config.log_max_files, 30);
+        originalConfig.log_max_files = form.log_max_files;
+
+        form.stream_log_enabled = readBoolean(config.stream_log_enabled, false);
+        originalConfig.stream_log_enabled = form.stream_log_enabled;
+
+        await loadLogStatus();
+
         form.wakeup_notification_enabled = readBoolean(config.wakeup_notification_enabled, false);
         originalConfig.wakeup_notification_enabled = form.wakeup_notification_enabled;
 
@@ -620,6 +736,11 @@ function cancelChanges() {
     form.routing_selection_strategy = originalConfig.routing_selection_strategy;
     form.upstream_proxy_url = originalConfig.upstream_proxy_url;
     form.test_request_timeout_seconds = originalConfig.test_request_timeout_seconds;
+    form.log_file_enabled = originalConfig.log_file_enabled;
+    form.log_file_level = originalConfig.log_file_level;
+    form.log_retention_days = originalConfig.log_retention_days;
+    form.log_max_files = originalConfig.log_max_files;
+    form.stream_log_enabled = originalConfig.stream_log_enabled;
     form.wakeup_notification_enabled = originalConfig.wakeup_notification_enabled;
     form.wakeup_notify_warmup_success = originalConfig.wakeup_notify_warmup_success;
     form.wakeup_notify_warmup_failure = originalConfig.wakeup_notify_warmup_failure;
@@ -682,6 +803,45 @@ async function handleTestNotification() {
     }
 }
 
+async function handleOpenLogDir() {
+    openingLogDir.value = true;
+    try {
+        const result = await openLogDir();
+        if (!result.success) {
+            message.error(result.error || '打开日志文件夹失败');
+            return;
+        }
+
+        message.success('已打开日志文件夹');
+        await loadLogStatus();
+    } catch (error: any) {
+        message.error(error?.message || '打开日志文件夹失败');
+    } finally {
+        openingLogDir.value = false;
+    }
+}
+
+async function handleCleanupLogs() {
+    cleaningLogs.value = true;
+    try {
+        const result = await cleanupLogs({
+            older_than_days: Math.max(0, Math.floor(form.log_retention_days || 0)),
+            keep_latest: Math.max(0, Math.floor(form.log_max_files || 0)),
+        });
+        if (!result.success) {
+            message.error(result.error || '清理日志失败');
+            return;
+        }
+
+        message.success(`已清理 ${result.deleted} 个日志文件`);
+        await loadLogStatus();
+    } catch (error: any) {
+        message.error(error?.message || '清理日志失败');
+    } finally {
+        cleaningLogs.value = false;
+    }
+}
+
 async function doCheckUpdate() {
     checkingUpdate.value = true;
     try {
@@ -736,6 +896,11 @@ async function saveConfig() {
             routing_selection_strategy: form.routing_selection_strategy,
             upstream_proxy_url: form.upstream_proxy_url.trim(),
             test_request_timeout_ms: String(Math.max(1, form.test_request_timeout_seconds) * 1000),
+            log_file_enabled: form.log_file_enabled ? "true" : "false",
+            log_file_level: form.log_file_level,
+            log_retention_days: String(Math.max(0, Math.floor(form.log_retention_days || 0))),
+            log_max_files: String(Math.max(0, Math.floor(form.log_max_files || 0))),
+            stream_log_enabled: form.stream_log_enabled ? "true" : "false",
             wakeup_notification_enabled: form.wakeup_notification_enabled ? "true" : "false",
             wakeup_notify_warmup_success: form.wakeup_notify_warmup_success ? "true" : "false",
             wakeup_notify_warmup_failure: form.wakeup_notify_warmup_failure ? "true" : "false",
@@ -762,6 +927,11 @@ async function saveConfig() {
         originalConfig.routing_selection_strategy = form.routing_selection_strategy;
         originalConfig.upstream_proxy_url = form.upstream_proxy_url.trim();
         originalConfig.test_request_timeout_seconds = form.test_request_timeout_seconds;
+        originalConfig.log_file_enabled = form.log_file_enabled;
+        originalConfig.log_file_level = form.log_file_level;
+        originalConfig.log_retention_days = Math.max(0, Math.floor(form.log_retention_days || 0));
+        originalConfig.log_max_files = Math.max(0, Math.floor(form.log_max_files || 0));
+        originalConfig.stream_log_enabled = form.stream_log_enabled;
         originalConfig.wakeup_notification_enabled = form.wakeup_notification_enabled;
         originalConfig.wakeup_notify_warmup_success = form.wakeup_notify_warmup_success;
         originalConfig.wakeup_notify_warmup_failure = form.wakeup_notify_warmup_failure;
@@ -775,6 +945,9 @@ async function saveConfig() {
         form.routing_max_attempts = originalConfig.routing_max_attempts;
         form.routing_retry_status_codes = originalConfig.routing_retry_status_codes;
         form.upstream_proxy_url = originalConfig.upstream_proxy_url;
+        form.log_retention_days = originalConfig.log_retention_days;
+        form.log_max_files = originalConfig.log_max_files;
+        await loadLogStatus();
     } catch {
         // error handling is typically done by the request interceptor
     } finally {

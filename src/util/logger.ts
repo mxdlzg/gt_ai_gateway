@@ -1,7 +1,16 @@
-import { existsSync, mkdirSync, writeFileSync, appendFileSync } from "fs";
+import { existsSync, mkdirSync, appendFileSync } from "fs";
 import { join } from "path";
 
-type LogLevel = "info" | "warn" | "error" | "debug";
+type LogLevel = "debug" | "info" | "warn" | "error";
+type LogFileLevel = LogLevel | "off";
+
+const LOG_LEVEL_WEIGHT: Record<LogFileLevel, number> = {
+    debug: 10,
+    info: 20,
+    warn: 30,
+    error: 40,
+    off: 999,
+};
 
 // 保存原始 console 方法，避免被重写导致无限递归
 const originalConsole = {
@@ -15,10 +24,12 @@ class Logger {
     private logDir: string;
     private logFilePath: string = "";
     private enabled: boolean;
+    private fileLevel: LogFileLevel;
 
-    constructor(logDir: string, enabled: boolean = true) {
+    constructor(logDir: string, enabled: boolean = true, fileLevel: LogFileLevel = "info") {
         this.logDir = logDir;
         this.enabled = enabled;
+        this.fileLevel = fileLevel;
 
         if (enabled) {
             this.ensureLogDir();
@@ -51,11 +62,41 @@ class Logger {
         return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}.${milliseconds}`;
     }
 
-    private write(level: LogLevel, message: string, ...args: unknown[]): void {
-        if (!this.enabled) {
+    private shouldWrite(level: LogLevel): boolean {
+        return this.enabled && LOG_LEVEL_WEIGHT[level] >= LOG_LEVEL_WEIGHT[this.fileLevel];
+    }
+
+    setEnabled(enabled: boolean): void {
+        this.enabled = enabled;
+        if (enabled) {
+            this.ensureLogDir();
+            this.logFilePath = this.getLogFilePath();
+        }
+    }
+
+    setFileLevel(level: string): void {
+        if (level === "debug" || level === "info" || level === "warn" || level === "error" || level === "off") {
+            this.fileLevel = level;
             return;
         }
 
+        this.fileLevel = "info";
+    }
+
+    getFileLevel(): LogFileLevel {
+        return this.fileLevel;
+    }
+
+    getLogDir(): string {
+        return this.logDir;
+    }
+
+    write(level: LogLevel, message: string, ...args: unknown[]): void {
+        if (!this.shouldWrite(level)) {
+            return;
+        }
+
+        this.logFilePath = this.getLogFilePath();
         const timestamp = this.formatTimestamp();
         const prefix = `[${timestamp}] [${level.toUpperCase()}]`;
 
@@ -110,9 +151,17 @@ function initLogger(rootDirOrEnabled?: string | boolean, enabled?: boolean): Log
             isLoggerEnabled = rootDirOrEnabled ?? true;
         }
 
-        loggerInstance = new Logger(logDir, isLoggerEnabled);
+        loggerInstance = new Logger(logDir, isLoggerEnabled, normalizeLogFileLevel(process.env.LOG_FILE_LEVEL || "info"));
     }
     return loggerInstance;
+}
+
+function normalizeLogFileLevel(level: string): LogFileLevel {
+    if (level === "debug" || level === "info" || level === "warn" || level === "error" || level === "off") {
+        return level;
+    }
+
+    return "info";
 }
 
 function getLogger(): Logger | null {
@@ -133,4 +182,5 @@ function getLogDir(): string {
 }
 
 export default initLogger;
-export { getLogger, Logger, resetLogger, getLogDir };
+export { getLogger, Logger, resetLogger, getLogDir, normalizeLogFileLevel };
+export type { LogFileLevel, LogLevel };

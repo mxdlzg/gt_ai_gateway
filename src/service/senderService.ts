@@ -26,6 +26,7 @@ import configService, { ConfigKey } from "./configService";
 import hostService from "./hostService";
 import { runInBackground } from "../util/runInBackground";
 import headerFingerprintService from "./headerFingerprintService";
+import logService from "./logService";
 
 function calculateCost(
     model: SgModel,
@@ -687,7 +688,7 @@ function buildStreamUsageAccounting(format: ApiFormat, usage: Dict | null | unde
 
 
 async function prepareStreamLog(record: SgRecord): Promise<WriteStream | null> {
-    const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
+    const isStreamLogEnabled = await logService.isStreamLogEnabled();
 
     if (!isStreamLogEnabled || record.id <= 0) {
         return null;
@@ -712,7 +713,7 @@ async function prepareStreamLog(record: SgRecord): Promise<WriteStream | null> {
 
 
 async function writeRequestLog(record: SgRecord, body: string): Promise<void> {
-    const isStreamLogEnabled = ormService.isNode && process.env.STREAM_LOG_ENABLED === "true";
+    const isStreamLogEnabled = await logService.isStreamLogEnabled();
     if (!isStreamLogEnabled || record.id <= 0) return;
 
     const logDir = join(getLogDir(), "stream");
@@ -925,7 +926,7 @@ async function handleNonStreamResponse(
             recordId: record.id,
             status: statusCode,
             contentType: upstreamRes.headers.get("content-type"),
-            body: responseText,
+            responsePreview: responseText.slice(0, 1000),
         });
 
         await recordService.update(record.id, {
@@ -1169,7 +1170,7 @@ async function handleResponsesNonStreamResponse(
             recordId: record.id,
             status: statusCode,
             contentType: upstreamRes.headers.get("content-type"),
-            body: responseText,
+            responsePreview: responseText.slice(0, 1000),
         });
 
         await recordService.update(record.id, {
