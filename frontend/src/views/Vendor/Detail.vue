@@ -19,6 +19,11 @@
                 <a-descriptions-item label="代理地址">
                     {{ vendor.proxy_url || '使用全局配置' }}
                 </a-descriptions-item>
+                <a-descriptions-item label="TLS 证书校验">
+                    <a-tag :color="vendor.skip_tls_verify ? 'red' : 'green'">
+                        {{ vendor.skip_tls_verify ? '跳过校验' : '正常校验' }}
+                    </a-tag>
+                </a-descriptions-item>
                 <a-descriptions-item label="请求指纹">
                     <a-tag :color="headerFingerprint.getTagColor(vendor.header_fingerprint)">
                         {{ headerFingerprint.getLabel(vendor.header_fingerprint) }}

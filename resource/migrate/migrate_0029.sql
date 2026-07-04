@@ -1,0 +1,1 @@
+ALTER TABLE vendor ADD COLUMN skip_tls_verify INTEGER DEFAULT 0 NOT NULL;

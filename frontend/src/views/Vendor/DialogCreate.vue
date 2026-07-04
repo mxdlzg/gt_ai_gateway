@@ -38,6 +38,21 @@
                     placeholder="留空使用全局代理，例如：http://127.0.0.1:7890"
                 />
             </a-form-item>
+            <a-form-item label="TLS 证书校验">
+                <a-space direction="vertical" style="width: 100%">
+                    <a-switch
+                        v-model:checked="formState.skip_tls_verify"
+                        checked-children="跳过"
+                        un-checked-children="校验"
+                    />
+                    <a-alert
+                        v-if="formState.skip_tls_verify"
+                        type="warning"
+                        show-icon
+                        message="已跳过上游 TLS 证书校验，仅建议用于证书异常的测试服务。"
+                    />
+                </a-space>
+            </a-form-item>
             <a-form-item label="请求指纹">
                 <a-select
                     v-model:value="formState.header_fingerprint"
@@ -153,6 +168,7 @@ const formState = reactive({
     name: '',
     token: '',
     proxy_url: '',
+    skip_tls_verify: false,
     header_fingerprint: 'auto' as HeaderFingerprintValue,
 });
 
@@ -198,6 +214,7 @@ function open() {
     formState.name = '';
     formState.token = '';
     formState.proxy_url = '';
+    formState.skip_tls_verify = false;
     formState.header_fingerprint = 'auto';
     urlsForm.splice(0, urlsForm.length);
     headersForm.splice(0, headersForm.length);
@@ -249,6 +266,7 @@ async function handleOk() {
             name: formState.name,
             token: formState.token,
             proxy_url: formState.proxy_url.trim(),
+            skip_tls_verify: formState.skip_tls_verify,
             header_fingerprint: formState.header_fingerprint,
         };
 

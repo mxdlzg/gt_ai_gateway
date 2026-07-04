@@ -20,6 +20,7 @@ export interface Vendor extends BaseEntity {
     headers: VendorHeaders;
     header_fingerprint: HeaderFingerprintValue;
     proxy_url: string;
+    skip_tls_verify: boolean;
     model_count: number;
 }
 
@@ -31,6 +32,7 @@ export interface CreateVendorRequest {
     headers?: VendorHeaders;
     header_fingerprint?: HeaderFingerprintValue;
     proxy_url?: string;
+    skip_tls_verify?: boolean;
 }
 
 export interface UpdateVendorRequest {
@@ -41,6 +43,7 @@ export interface UpdateVendorRequest {
     headers?: VendorHeaders;
     header_fingerprint?: HeaderFingerprintValue;
     proxy_url?: string;
+    skip_tls_verify?: boolean;
 }
 
 export interface VendorQuery extends TableQuery {

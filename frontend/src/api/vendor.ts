@@ -14,6 +14,7 @@ export interface VendorTestResponse {
     request_headers?: Record<string, string>;
     request_body?: unknown;
     proxy_url?: string | null;
+    skip_tls_verify?: boolean;
     response?: unknown;
     error?: unknown;
     error_detail?: unknown;

@@ -166,15 +166,39 @@ function serializeHeaders(headers: Headers): Record<string, string> {
 
 
 const proxyAgentCache = new Map<string, unknown>();
+const insecureDirectAgentCache = new Map<string, unknown>();
 
 
-async function getProxyAgent(proxyUrl: string): Promise<unknown> {
-    const cached = proxyAgentCache.get(proxyUrl);
+async function getProxyAgent(proxyUrl: string, skipTlsVerify: boolean = false): Promise<unknown> {
+    const cacheKey = `${proxyUrl}|skipTlsVerify=${skipTlsVerify ? "1" : "0"}`;
+    const cached = proxyAgentCache.get(cacheKey);
     if (cached) return cached;
 
     const { ProxyAgent } = await import("undici");
-    const agent = new ProxyAgent(proxyUrl);
-    proxyAgentCache.set(proxyUrl, agent);
+    const agent = skipTlsVerify
+        ? new ProxyAgent({
+            uri: proxyUrl,
+            requestTls: {
+                rejectUnauthorized: false,
+            },
+        } as any)
+        : new ProxyAgent(proxyUrl);
+    proxyAgentCache.set(cacheKey, agent);
+    return agent;
+}
+
+
+async function getInsecureDirectAgent(origin: string): Promise<unknown> {
+    const cached = insecureDirectAgentCache.get(origin);
+    if (cached) return cached;
+
+    const { Agent } = await import("undici");
+    const agent = new Agent({
+        connect: {
+            rejectUnauthorized: false,
+        },
+    } as any);
+    insecureDirectAgentCache.set(origin, agent);
     return agent;
 }
 
@@ -263,13 +287,21 @@ async function buildFetchInitWithProxy(
     vendor?: SgVendor | null,
 ): Promise<RequestInit> {
     const proxyUrl = await resolveProxyUrl(vendor);
+    const skipTlsVerify = vendor?.getSkipTlsVerify() ?? false;
     if (!proxyUrl || !ormService.isNode) {
-        return init;
+        if (!skipTlsVerify || !ormService.isNode) {
+            return init;
+        }
+
+        return {
+            ...init,
+            dispatcher: await getInsecureDirectAgent("__default__"),
+        } as RequestInit;
     }
 
     return {
         ...init,
-        dispatcher: await getProxyAgent(proxyUrl),
+        dispatcher: await getProxyAgent(proxyUrl, skipTlsVerify),
     } as RequestInit;
 }
 
@@ -277,6 +309,7 @@ async function buildFetchInitWithProxy(
 async function buildFetchInitWithProxyUrl(
     init: RequestInit,
     proxyUrl?: string | null,
+    skipTlsVerify: boolean = false,
 ): Promise<RequestInit> {
     const normalizedProxyUrl = (proxyUrl ?? "").trim();
     if (!normalizedProxyUrl || !ormService.isNode) {
@@ -285,7 +318,7 @@ async function buildFetchInitWithProxyUrl(
 
     return {
         ...init,
-        dispatcher: await getProxyAgent(normalizedProxyUrl),
+        dispatcher: await getProxyAgent(normalizedProxyUrl, skipTlsVerify),
     } as RequestInit;
 }
 
@@ -296,10 +329,16 @@ async function fetchWithProxy(
     vendor?: SgVendor | null,
 ): Promise<Response> {
     const proxyUrl = await resolveProxyUrl(vendor);
-    if (proxyUrl && ormService.isNode) {
+    const skipTlsVerify = vendor?.getSkipTlsVerify() ?? false;
+    if ((proxyUrl || skipTlsVerify) && ormService.isNode) {
         const { fetch: undiciFetch } = await import("undici");
-        const proxiedInit = await buildFetchInitWithProxyUrl(init, proxyUrl);
-        return undiciFetch(url, proxiedInit as any) as unknown as Response;
+        const preparedInit = proxyUrl
+            ? await buildFetchInitWithProxyUrl(init, proxyUrl, skipTlsVerify)
+            : {
+                ...init,
+                dispatcher: await getInsecureDirectAgent(new URL(url).origin),
+            };
+        return undiciFetch(url, preparedInit as any) as unknown as Response;
     }
 
     return fetch(url, init);

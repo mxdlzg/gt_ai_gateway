@@ -25,6 +25,7 @@ function formatVendor(vendor: SgVendor, modelCount = 0) {
         headers: vendor.getHeaders(),
         header_fingerprint: vendor.getHeaderFingerprint(),
         proxy_url: vendor.getProxyUrl(),
+        skip_tls_verify: vendor.getSkipTlsVerify(),
         model_count: modelCount,
         created_at: vendor.created_at,
         updated_at: vendor.updated_at,
@@ -105,7 +106,7 @@ async function getVendorsByIds(c: Context) {
 
 async function createVendor(c: Context) {
     const body = await c.req.json();
-    const { type, name, token, urls, headers, header_fingerprint, proxy_url } = body;
+    const { type, name, token, urls, headers, header_fingerprint, proxy_url, skip_tls_verify } = body;
 
     // Validation - 不验证 urls，允许为空
     if (!type || !name || !token) {
@@ -120,6 +121,7 @@ async function createVendor(c: Context) {
         headers: headers ? JSON.stringify(headers) : "{}",
         header_fingerprint: headerFingerprintService.normalizeVendorSetting(header_fingerprint),
         proxy_url: typeof proxy_url === "string" ? proxy_url.trim() : "",
+        skip_tls_verify: skip_tls_verify === true ? 1 : 0,
     });
 
     return c.json(formatVendor(instance));
@@ -135,7 +137,7 @@ async function updateVendor(c: Context) {
     }
 
     const body = await c.req.json();
-    const { type, name, token, urls, headers, header_fingerprint, proxy_url } = body;
+    const { type, name, token, urls, headers, header_fingerprint, proxy_url, skip_tls_verify } = body;
 
     const updatedVendor = await vendorService.updateVendor(vendorId, {
         type,
@@ -145,6 +147,7 @@ async function updateVendor(c: Context) {
         headers,
         header_fingerprint,
         proxy_url,
+        skip_tls_verify,
     });
 
     if (!updatedVendor) {
@@ -308,6 +311,7 @@ async function testVendor(c: Context) {
             duration,
             url,
             proxy_url: proxyUrl || null,
+            skip_tls_verify: vendor.getSkipTlsVerify(),
             converted_from: convertedFrom,
             converted_to: convertedTo,
             request_method: "POST",
@@ -336,6 +340,7 @@ async function testVendor(c: Context) {
             error_detail: errorDetail,
             url,
             proxy_url: await senderService.resolveProxyUrl(vendor) || null,
+            skip_tls_verify: vendor.getSkipTlsVerify(),
             request_method: "POST",
             request_headers: Object.fromEntries(headerEntries),
             request_body: requestBodyDisplay,

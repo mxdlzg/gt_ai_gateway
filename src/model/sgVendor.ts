@@ -16,6 +16,7 @@ class SgVendor extends Model {
     headers!: string;  // JSON string
     header_fingerprint!: string;
     proxy_url!: string;
+    skip_tls_verify!: boolean | number | string;
 
     created_at!: Date;
     updated_at!: Date;
@@ -60,6 +61,11 @@ class SgVendor extends Model {
 
     getHeaderFingerprint(): string {
         return (this.header_fingerprint ?? "auto").trim() || "auto";
+    }
+
+
+    getSkipTlsVerify(): boolean {
+        return this.skip_tls_verify === true || this.skip_tls_verify === 1 || this.skip_tls_verify === "1";
     }
 
 

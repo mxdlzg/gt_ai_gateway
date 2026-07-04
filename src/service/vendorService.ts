@@ -14,7 +14,7 @@ async function getVendorByName(name: string): Promise<SgVendor | null> {
 
 async function updateVendor(
     vendorId: number,
-    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string>; header_fingerprint?: string; proxy_url?: string },
+    data: { type?: string; name?: string; token?: string; urls?: Record<string, string>; headers?: Record<string, string>; header_fingerprint?: string; proxy_url?: string; skip_tls_verify?: boolean },
 ): Promise<SgVendor | null> {
     const vendor = await SgVendor.query().find(vendorId);
 
@@ -43,6 +43,10 @@ async function updateVendor(
 
     if (data.proxy_url !== undefined) {
         updateData.proxy_url = data.proxy_url.trim();
+    }
+
+    if (data.skip_tls_verify !== undefined) {
+        updateData.skip_tls_verify = data.skip_tls_verify === true ? 1 : 0;
     }
 
     await SgVendor.query()
