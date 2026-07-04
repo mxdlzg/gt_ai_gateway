@@ -66,7 +66,7 @@ export const useRecordStore = defineStore('record', () => {
      */
     async function enrichRecords(recordList: Record[]) {
         const userIds = [...new Set(recordList.map(r => r.user_id).filter(id => id !== null && Number(id) !== -1))] as number[];
-        const modelIds = [...new Set(recordList.map(r => r.model_id).filter(id => id !== null))] as number[];
+        const modelIds = [...new Set(recordList.map(r => r.model_id).filter(id => id !== null && Number(id) > 0))] as number[];
 
         const [users, models] = await Promise.all([
             userIds.length > 0 ? fetchUsersByIds(userIds) : Promise.resolve([]),
@@ -91,7 +91,9 @@ export const useRecordStore = defineStore('record', () => {
                 record.user_name = userMap.get(uid) || `用户${uid}`;
             }
 
-            if (mid) {
+            if (mid === 0) {
+                record.model_name = '测试/后台任务';
+            } else if (mid) {
                 const model = modelMap.get(mid);
                 if (model) {
                     record.model_name = model.name;
@@ -140,7 +142,9 @@ export const useRecordStore = defineStore('record', () => {
                 );
             }
 
-            if (record.model_id) {
+            if (record.model_id === 0) {
+                recordDetail.model_name = '测试/后台任务';
+            } else if (record.model_id) {
                 promises.push(
                     getModel(record.model_id).then(async model => {
                         recordDetail.model_name = model.name;

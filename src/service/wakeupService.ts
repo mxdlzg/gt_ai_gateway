@@ -1,5 +1,5 @@
 import customError from "../util/customError";
-import { ApiFormat } from "../constants";
+import { ApiFormat, FailedCode, ROOT_USER_ID, SgRecordStatus } from "../constants";
 import { SgVendor } from "../model/sgVendor";
 import { SgVendorModel } from "../model/sgVendorModel";
 import SgVendorWakeupJob from "../model/sgVendorWakeupJob";
@@ -10,6 +10,7 @@ import senderService from "./senderService";
 import wakeupPromptService, { WakeupPromptCategory } from "./wakeupPromptService";
 import desktopNotificationService from "./desktopNotificationService";
 import headerFingerprintService from "./headerFingerprintService";
+import recordService from "./recordService";
 import { createListResponse, parsePaginationQuery } from "../util/pagination";
 
 type WakeupMode = "warmup" | "keepalive";
@@ -919,6 +920,21 @@ async function executeUpstreamRequest(job: SgVendorWakeupJob, route: ResolvedWak
     const timeoutMs = await getFetchTimeoutMs();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const record = await recordService.create(
+        ROOT_USER_ID,
+        0,
+        body,
+        job.format,
+        route.upstreamFormat,
+        route.vendor.id,
+        route.modelName,
+    );
+    await recordService.update(record.id, {
+        status: SgRecordStatus.PROCESSING,
+        failed_code: null,
+        request_headers: JSON.stringify(senderService.serializeHeaders(headers)),
+        start_at: new Date(),
+    });
 
     try {
         const response = await senderService.fetchWithProxy(route.url, {
@@ -931,6 +947,12 @@ async function executeUpstreamRequest(job: SgVendorWakeupJob, route: ResolvedWak
         const responseText = await response.text().catch(() => "");
         const assistantText = extractAssistantText(route.upstreamFormat, responseText);
         const responsePreview = responseText.slice(0, 1000);
+        await recordService.update(record.id, {
+            status: response.ok ? SgRecordStatus.SUCCESS : SgRecordStatus.FAILED,
+            failed_code: response.ok ? null : FailedCode.UPSTREAM_ERROR,
+            response_data: responseText,
+            end_at: new Date(),
+        });
 
         return {
             success: response.ok,
@@ -945,13 +967,23 @@ async function executeUpstreamRequest(job: SgVendorWakeupJob, route: ResolvedWak
                 : undefined,
         };
     } catch (error) {
+        const errorDetail = senderService.serializeFetchError(error);
+        await recordService.update(record.id, {
+            status: SgRecordStatus.FAILED,
+            failed_code: FailedCode.UPSTREAM_DISCONNECTED,
+            response_data: JSON.stringify({
+                error: senderService.formatFetchError(error),
+                detail: errorDetail,
+            }),
+            end_at: new Date(),
+        });
         return {
             success: false,
             duration: Date.now() - startTime,
             prompt,
             promptCategory: wakeupPromptService.normalizeCategory(job.prompt_category),
             error: senderService.formatFetchError(error),
-            errorDetail: senderService.serializeFetchError(error),
+            errorDetail,
         };
     } finally {
         clearTimeout(timeout);

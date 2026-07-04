@@ -7,8 +7,9 @@ import vendorDefaultUrls from "../service/vendorDefaultUrls";
 import ormService from "../service/ormService";
 import senderService from "../service/senderService";
 import headerFingerprintService from "../service/headerFingerprintService";
+import recordService from "../service/recordService";
 import customError from "../util/customError";
-import { ApiFormat } from "../constants";
+import { ApiFormat, FailedCode, ROOT_USER_ID, SgRecordStatus } from "../constants";
 import { createListResponse, parsePaginationQuery } from "../util/pagination";
 
 
@@ -273,6 +274,22 @@ async function testVendor(c: Context) {
         });
     }
 
+    const record = await recordService.create(
+        ROOT_USER_ID,
+        0,
+        upstreamBody,
+        format,
+        requestFormat,
+        vendor.id,
+        typeof model === "string" ? model : null,
+    );
+    await recordService.update(record.id, {
+        status: SgRecordStatus.PROCESSING,
+        failed_code: null,
+        request_headers: JSON.stringify(senderService.serializeHeaders(headers)),
+        start_at: new Date(),
+    });
+
     try {
         console.log(`[testVendor] Testing vendor ${vendor.name} (${vendor.id}) with model ${model} at ${url}`);
         const startTime = Date.now();
@@ -291,6 +308,12 @@ async function testVendor(c: Context) {
         } catch {
             responseData = responseText;
         }
+        await recordService.update(record.id, {
+            status: response.ok ? SgRecordStatus.SUCCESS : SgRecordStatus.FAILED,
+            failed_code: response.ok ? null : FailedCode.UPSTREAM_ERROR,
+            response_data: responseText,
+            end_at: new Date(),
+        });
 
         const headerEntries = Array.from(headers.entries()).map(([key, value]) => {
             if (key.toLowerCase() === 'authorization' || key.toLowerCase() === 'x-api-key') {
@@ -321,6 +344,15 @@ async function testVendor(c: Context) {
         });
     } catch (error: any) {
         const errorDetail = senderService.serializeFetchError(error);
+        await recordService.update(record.id, {
+            status: SgRecordStatus.FAILED,
+            failed_code: FailedCode.UPSTREAM_DISCONNECTED,
+            response_data: JSON.stringify({
+                error: senderService.formatFetchError(error),
+                detail: errorDetail,
+            }),
+            end_at: new Date(),
+        });
         let requestBodyDisplay: unknown = upstreamBody;
         try {
             requestBodyDisplay = JSON.parse(upstreamBody);
