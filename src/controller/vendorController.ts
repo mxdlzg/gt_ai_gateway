@@ -240,7 +240,7 @@ async function testVendor(c: Context) {
     }
 
     const url = vendor.getUrlByFormat(requestFormat);
-    const headers = senderService.buildUpstreamHeaders(c.req.raw.headers, vendor, requestFormat, vendorModel);
+    const headers = await senderService.buildUpstreamHeaders(c.req.raw.headers, vendor, requestFormat, vendorModel);
     let upstreamBody = "";
 
     if (requestFormat === ApiFormat.ANTHROPIC) {

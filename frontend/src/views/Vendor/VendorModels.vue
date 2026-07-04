@@ -251,6 +251,7 @@ const columns: TableColumnsType<VendorModel> = [
 ];
 
 onMounted(async () => {
+    void headerFingerprint.loadPresets();
     await Promise.all([loadVendorName(), loadModels()]);
 });
 

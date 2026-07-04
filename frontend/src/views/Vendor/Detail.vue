@@ -77,6 +77,7 @@ onMounted(async () => {
     const id = Number(route.params.id);
     if (id) {
         void loadPresets();
+        void headerFingerprint.loadPresets();
         await loadVendor(id);
     }
 });

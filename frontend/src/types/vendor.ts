@@ -10,7 +10,7 @@ export interface VendorHeaders {
     [key: string]: string;
 }
 
-export type HeaderFingerprintValue = '' | 'auto' | 'none' | 'claude_cli' | 'codex_cli';
+export type HeaderFingerprintValue = string;
 
 export interface Vendor extends BaseEntity {
     type: VendorType;

@@ -1,4 +1,5 @@
 import type { BaseEntity, TableQuery } from './index';
+import type { HeaderFingerprintValue } from './vendor';
 
 export type WakeupMode = 'warmup' | 'keepalive';
 export type WakeupScheduleMode = 'window' | 'always';
@@ -17,6 +18,7 @@ export interface WakeupJob extends BaseEntity {
     model_name: string;
     format: 'openai' | 'anthropic' | 'responses';
     auto_convert: boolean;
+    header_fingerprint: HeaderFingerprintValue;
     mode: WakeupMode;
     enabled: boolean;
     schedule_mode: WakeupScheduleMode;
@@ -65,6 +67,7 @@ export interface WakeupJobPayload {
     model_name: string;
     format: 'openai' | 'anthropic' | 'responses';
     auto_convert: boolean;
+    header_fingerprint?: HeaderFingerprintValue;
     mode: WakeupMode;
     enabled: boolean;
     schedule_mode?: WakeupScheduleMode;

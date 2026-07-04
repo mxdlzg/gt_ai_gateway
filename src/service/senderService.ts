@@ -124,12 +124,13 @@ function applyHeaderMap(headers: Headers, headerMap: Record<string, string>): vo
 }
 
 
-function buildUpstreamHeaders(
+async function buildUpstreamHeaders(
     requestHeaders: Headers | null,
     vendor: SgVendor,
     upstreamFormat: ApiFormat,
     vendorModel: SgVendorModel | null = null,
-): Headers {
+    headerFingerprintOverride: string | null = null,
+): Promise<Headers> {
     const finalHeaders = new Headers();
 
     if (requestHeaders) {
@@ -148,11 +149,11 @@ function buildUpstreamHeaders(
     }
 
     finalHeaders.set("Content-Type", "application/json");
-    const fingerprint = headerFingerprintService.resolveFingerprint(vendor, vendorModel, upstreamFormat);
+    const fingerprint = headerFingerprintService.resolveFingerprint(vendor, vendorModel, upstreamFormat, headerFingerprintOverride);
     if (fingerprint === HeaderFingerprint.NONE) {
         finalHeaders.set("User-Agent", "");
     } else {
-        applyHeaderMap(finalHeaders, headerFingerprintService.buildHeaders(vendor, vendorModel, upstreamFormat));
+        applyHeaderMap(finalHeaders, await headerFingerprintService.buildHeaders(vendor, vendorModel, upstreamFormat, headerFingerprintOverride));
     }
     applyVendorHeaders(finalHeaders, vendor);
 
@@ -1287,7 +1288,7 @@ async function prepareUpstreamRequest(
     hostKey: string,
 ): Promise<PreparedUpstreamRequest> {
     const needsConversion = clientFormat !== route.upstreamFormat;
-    const finalHeaders = buildUpstreamHeaders(c.req.raw.headers, route.vendor, route.upstreamFormat, route.vendorModel);
+    const finalHeaders = await buildUpstreamHeaders(c.req.raw.headers, route.vendor, route.upstreamFormat, route.vendorModel);
 
     let upstreamBody = originalBody;
     if (route.vendorModel) {

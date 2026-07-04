@@ -49,6 +49,61 @@
 
 
             <div class="settings-section">
+                <h3 class="section-title">Header 预设</h3>
+                <div class="settings-list">
+                    <div class="setting-item setting-item-block">
+                        <div class="setting-info">
+                            <div class="setting-title">请求 Header 指纹预设</div>
+                            <div class="setting-desc">供应商、模型和唤醒任务可选择这些预设；auto 和 none 是固定模式，不在这里编辑。</div>
+                        </div>
+                        <div class="header-preset-panel">
+                            <div class="header-preset-toolbar">
+                                <a-space wrap>
+                                    <a-button type="primary" @click="openHeaderPresetCreate">
+                                        新增预设
+                                    </a-button>
+                                    <a-button :loading="headerPresetLoading" @click="loadHeaderPresets">
+                                        刷新
+                                    </a-button>
+                                    <a-button danger :loading="headerPresetSaving" @click="resetHeaderPresets">
+                                        恢复默认
+                                    </a-button>
+                                </a-space>
+                            </div>
+                            <a-table
+                                :columns="headerPresetColumns"
+                                :data-source="headerPresets"
+                                :loading="headerPresetLoading"
+                                :pagination="false"
+                                row-key="key"
+                                size="small"
+                            >
+                                <template #bodyCell="{ column, record }">
+                                    <template v-if="column.key === 'headers_count'">
+                                        {{ Object.keys(record.headers || {}).length }}
+                                    </template>
+                                    <template v-else-if="column.key === 'action'">
+                                        <a-space>
+                                            <a-button type="link" size="small" style="padding: 0" @click="openHeaderPresetEdit(record)">
+                                                编辑
+                                            </a-button>
+                                            <a-button type="link" danger size="small" style="padding: 0" @click="deleteHeaderPreset(record)">
+                                                删除
+                                            </a-button>
+                                        </a-space>
+                                    </template>
+                                </template>
+                                <template #expandedRowRender="{ record }">
+                                    <pre class="header-preset-json">{{ formatHeaderPreset(record.headers) }}</pre>
+                                </template>
+                            </a-table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+            <div class="settings-section">
                 <h3 class="section-title">网络与记录</h3>
                 <div class="settings-list">
                     <div class="setting-item">
@@ -392,18 +447,61 @@
                 </a-button>
             </div>
         </a-spin>
+
+        <a-modal
+            v-model:open="headerPresetDialogOpen"
+            :title="editingHeaderPresetKey ? '编辑 Header 预设' : '新增 Header 预设'"
+            :confirm-loading="headerPresetSaving"
+            width="720px"
+            @ok="saveHeaderPreset"
+            @cancel="headerPresetDialogOpen = false"
+        >
+            <a-form layout="vertical">
+                <a-form-item label="Key">
+                    <a-input
+                        v-model:value="headerPresetForm.key"
+                        :disabled="!!editingHeaderPresetKey"
+                        placeholder="例如：claude_cli"
+                    />
+                </a-form-item>
+                <a-form-item label="名称">
+                    <a-input v-model:value="headerPresetForm.label" placeholder="例如：Claude CLI" />
+                </a-form-item>
+                <a-form-item label="Headers">
+                    <a-space direction="vertical" style="width: 100%">
+                        <div v-for="(item, index) in headerPresetForm.headers" :key="index" class="header-preset-row">
+                            <a-input v-model:value="item.key" placeholder="Header 名称" />
+                            <a-input v-model:value="item.value" placeholder="Header 值" />
+                            <a-button danger @click="removeHeaderPresetHeader(index)">
+                                删除
+                            </a-button>
+                        </div>
+                        <a-button block @click="addHeaderPresetHeader">
+                            添加 Header
+                        </a-button>
+                        <a-alert
+                            type="info"
+                            show-icon
+                            message="认证类 Header 会在后端过滤；Claude 会话 ID 可使用 {session_id} 模板动态生成。"
+                        />
+                    </a-space>
+                </a-form-item>
+            </a-form>
+        </a-modal>
     </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, reactive, ref, computed } from 'vue';
-import { message } from 'ant-design-vue/es';
-import { getConfig, testNotification, testProxy, updateConfig } from '@/api/config';
-import type { NotificationTestResponse, ProxyTestResponse } from '@/api/config';
+import { message, Modal } from 'ant-design-vue/es';
+import { getConfig, getHeaderFingerprintPresets, resetHeaderFingerprintPresets, testNotification, testProxy, updateConfig, updateHeaderFingerprintPresets } from '@/api/config';
+import type { HeaderFingerprintPreset, NotificationTestResponse, ProxyTestResponse } from '@/api/config';
+import type { TableColumnsType } from 'ant-design-vue';
 import { checkUpdate, cleanupLogs, getLogStatus, openLogDir } from '@/api/system';
 import type { LogStatusResponse } from '@/types/system';
 import { useAppStore } from '@/stores/app';
 import { DEFAULT_REQUEST_TIMEOUT_MS, setRequestTimeoutMs } from '@/utils/request';
+import headerFingerprint from '@/utils/headerFingerprint';
 
 const appStore = useAppStore();
 const currentVersion = computed(() => appStore.version);
@@ -422,13 +520,31 @@ const cleaningLogs = ref(false);
 const proxyTestResult = ref<ProxyTestResponse | null>(null);
 const notificationTestResult = ref<NotificationTestResponse | null>(null);
 const logStatus = ref<LogStatusResponse | null>(null);
+const headerPresets = ref<HeaderFingerprintPreset[]>([]);
+const headerPresetLoading = ref(false);
+const headerPresetSaving = ref(false);
+const headerPresetDialogOpen = ref(false);
+const editingHeaderPresetKey = ref('');
+const headerPresetForm = reactive({
+    key: '',
+    label: '',
+    headers: [] as { key: string; value: string }[],
+});
 
 const DEFAULT_REDACTION_KEYS = 'authorization,x-api-key,api_key,apikey,access_token,refresh_token,token,password,secret,cookie,set-cookie';
 const DEFAULT_RETRY_STATUS_CODES = '429,500,502,503,504';
+const HEADER_PRESET_KEY_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{1,63}$/;
+const RESERVED_HEADER_PRESET_KEYS = new Set(['auto', 'none', 'inherit']);
 const routingStrategyOptions = [
     { label: '优先级 + 权重', value: 'priority_weight' },
     { label: '延迟优先', value: 'latency' },
     { label: '价格优先', value: 'cost' },
+];
+const headerPresetColumns: TableColumnsType<HeaderFingerprintPreset> = [
+    { title: 'Key', dataIndex: 'key', key: 'key', width: 170 },
+    { title: '名称', dataIndex: 'label', key: 'label', width: 180 },
+    { title: 'Headers', key: 'headers_count', width: 100 },
+    { title: '操作', key: 'action', width: 120, fixed: 'right' as const },
 ];
 const logLevelOptions = [
     { label: 'Debug', value: 'debug' },
@@ -611,6 +727,146 @@ async function loadLogStatus(): Promise<void> {
     }
 }
 
+async function loadHeaderPresets(): Promise<void> {
+    headerPresetLoading.value = true;
+    try {
+        const settings = await getHeaderFingerprintPresets();
+        headerPresets.value = settings.presets;
+        headerFingerprint.applyPresets(settings.presets);
+    } catch (error: any) {
+        message.error(error?.message || '加载 Header 预设失败');
+    } finally {
+        headerPresetLoading.value = false;
+    }
+}
+
+function formatHeaderPreset(headers: Record<string, string>): string {
+    return JSON.stringify(headers || {}, null, 2);
+}
+
+function openHeaderPresetCreate(): void {
+    editingHeaderPresetKey.value = '';
+    headerPresetForm.key = '';
+    headerPresetForm.label = '';
+    headerPresetForm.headers.splice(0, headerPresetForm.headers.length);
+    addHeaderPresetHeader();
+    headerPresetDialogOpen.value = true;
+}
+
+function openHeaderPresetEdit(record: HeaderFingerprintPreset): void {
+    editingHeaderPresetKey.value = record.key;
+    headerPresetForm.key = record.key;
+    headerPresetForm.label = record.label;
+    headerPresetForm.headers.splice(
+        0,
+        headerPresetForm.headers.length,
+        ...Object.entries(record.headers || {}).map(([key, value]) => ({ key, value })),
+    );
+    headerPresetDialogOpen.value = true;
+}
+
+function addHeaderPresetHeader(): void {
+    headerPresetForm.headers.push({ key: '', value: '' });
+}
+
+function removeHeaderPresetHeader(index: number): void {
+    headerPresetForm.headers.splice(index, 1);
+}
+
+function collectHeaderPresetForm(): HeaderFingerprintPreset | null {
+    const key = headerPresetForm.key.trim();
+    if (!HEADER_PRESET_KEY_PATTERN.test(key) || RESERVED_HEADER_PRESET_KEYS.has(key)) {
+        message.error('Key 只能使用字母、数字、下划线和中划线，且不能是 auto、none、inherit');
+        return null;
+    }
+
+    const duplicate = headerPresets.value.some(item => item.key === key && item.key !== editingHeaderPresetKey.value);
+    if (duplicate) {
+        message.error('Key 已存在');
+        return null;
+    }
+
+    const label = headerPresetForm.label.trim();
+    if (!label) {
+        message.error('请输入名称');
+        return null;
+    }
+
+    const headers: Record<string, string> = {};
+    for (const item of headerPresetForm.headers) {
+        const headerKey = item.key.trim();
+        if (!headerKey) continue;
+        headers[headerKey] = item.value;
+    }
+
+    return { key, label, headers };
+}
+
+async function persistHeaderPresets(nextPresets: HeaderFingerprintPreset[], successText: string): Promise<void> {
+    headerPresetSaving.value = true;
+    try {
+        const settings = await updateHeaderFingerprintPresets(nextPresets);
+        headerPresets.value = settings.presets;
+        headerFingerprint.applyPresets(settings.presets);
+        message.success(successText);
+    } catch (error: any) {
+        message.error(error?.message || '保存 Header 预设失败');
+    } finally {
+        headerPresetSaving.value = false;
+    }
+}
+
+async function saveHeaderPreset(): Promise<void> {
+    const preset = collectHeaderPresetForm();
+    if (!preset) return;
+
+    const nextPresets = [...headerPresets.value];
+    const existingIndex = nextPresets.findIndex(item => item.key === editingHeaderPresetKey.value);
+    if (existingIndex >= 0) {
+        nextPresets[existingIndex] = preset;
+    } else {
+        nextPresets.push(preset);
+    }
+
+    await persistHeaderPresets(nextPresets, 'Header 预设已保存');
+    headerPresetDialogOpen.value = false;
+}
+
+function deleteHeaderPreset(record: HeaderFingerprintPreset): void {
+    Modal.confirm({
+        title: '删除 Header 预设',
+        content: `确定删除 "${record.label}" 吗？已使用该 key 的供应商、模型或任务会保留 key，但不会再应用预设 headers。`,
+        okType: 'danger',
+        async onOk() {
+            await persistHeaderPresets(
+                headerPresets.value.filter(item => item.key !== record.key),
+                'Header 预设已删除',
+            );
+        },
+    });
+}
+
+function resetHeaderPresets(): void {
+    Modal.confirm({
+        title: '恢复默认 Header 预设',
+        content: '这会覆盖当前预设列表，恢复 Claude CLI 和 Codex CLI 默认值。',
+        okType: 'danger',
+        async onOk() {
+            headerPresetSaving.value = true;
+            try {
+                const settings = await resetHeaderFingerprintPresets();
+                headerPresets.value = settings.presets;
+                headerFingerprint.applyPresets(settings.presets);
+                message.success('Header 预设已恢复默认');
+            } catch (error: any) {
+                message.error(error?.message || '恢复默认失败');
+            } finally {
+                headerPresetSaving.value = false;
+            }
+        },
+    });
+}
+
 async function loadConfig(): Promise<void> {
     loading.value = true;
     try {
@@ -689,6 +945,7 @@ async function loadConfig(): Promise<void> {
         originalConfig.stream_log_enabled = form.stream_log_enabled;
 
         await loadLogStatus();
+        await loadHeaderPresets();
 
         form.wakeup_notification_enabled = readBoolean(config.wakeup_notification_enabled, false);
         originalConfig.wakeup_notification_enabled = form.wakeup_notification_enabled;
@@ -1001,6 +1258,12 @@ async function saveConfig() {
     transition: background-color 0.3s;
 }
 
+.setting-item-block {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 16px;
+}
+
 .setting-item:not(:last-child) {
     border-bottom: 1px solid var(--border-color, #f0f0f0);
 }
@@ -1009,6 +1272,10 @@ async function saveConfig() {
     flex: 1;
     min-width: 0;
     margin-right: 24px;
+}
+
+.setting-item-block .setting-info {
+    margin-right: 0;
 }
 
 .setting-title {
@@ -1055,6 +1322,31 @@ async function saveConfig() {
     color: var(--text-secondary, #8c8c8c);
     font-size: 12px;
     line-height: 1.4;
+}
+
+.header-preset-panel {
+    width: 100%;
+}
+
+.header-preset-toolbar {
+    margin-bottom: 12px;
+}
+
+.header-preset-json {
+    margin: 0;
+    max-height: 220px;
+    overflow: auto;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-page, #f5f5f5);
+    font-size: 12px;
+}
+
+.header-preset-row {
+    display: grid;
+    grid-template-columns: minmax(150px, 220px) 1fr auto;
+    gap: 8px;
+    width: 100%;
 }
 
 .page-actions {

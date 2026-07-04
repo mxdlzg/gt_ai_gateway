@@ -210,6 +210,7 @@ const rules = {
 
 function open() {
     void loadPresets();
+    void headerFingerprint.loadPresets();
     formState.type = 'openai';
     formState.name = '';
     formState.token = '';

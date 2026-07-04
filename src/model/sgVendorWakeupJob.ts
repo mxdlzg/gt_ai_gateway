@@ -18,6 +18,7 @@ class SgVendorWakeupJob extends Model {
     model_name!: string;
     format!: string;
     auto_convert!: number | boolean;
+    header_fingerprint!: string;
     mode!: string;
     enabled!: number | boolean;
     schedule_mode!: string;

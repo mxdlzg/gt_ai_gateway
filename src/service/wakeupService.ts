@@ -9,6 +9,7 @@ import ormService from "./ormService";
 import senderService from "./senderService";
 import wakeupPromptService, { WakeupPromptCategory } from "./wakeupPromptService";
 import desktopNotificationService from "./desktopNotificationService";
+import headerFingerprintService from "./headerFingerprintService";
 import { createListResponse, parsePaginationQuery } from "../util/pagination";
 
 type WakeupMode = "warmup" | "keepalive";
@@ -23,6 +24,7 @@ interface WakeupJobInput {
     model_name?: string;
     format?: string;
     auto_convert?: boolean | number;
+    header_fingerprint?: string | null;
     mode?: string;
     enabled?: boolean | number;
     schedule_mode?: string;
@@ -518,6 +520,9 @@ async function normalizeJobInput(input: WakeupJobInput, existing: SgVendorWakeup
         model_name: modelName,
         format: normalizeFormat(input.format ?? getExistingValue(existing, "format", ApiFormat.OPENAI)),
         auto_convert: toBoolean(input.auto_convert ?? getExistingValue(existing, "auto_convert", 0), false) ? 1 : 0,
+        header_fingerprint: headerFingerprintService.normalizeOptionalSetting(
+            input.header_fingerprint ?? getExistingValue(existing, "header_fingerprint", ""),
+        ),
         mode,
         enabled: enabled ? 1 : 0,
         schedule_mode: scheduleMode,
@@ -572,6 +577,7 @@ function formatJob(row: Record<string, any>) {
         model_name: row.model_name,
         format: row.format,
         auto_convert: toBoolean(row.auto_convert),
+        header_fingerprint: row.header_fingerprint ?? "",
         mode: row.mode,
         enabled: toBoolean(row.enabled),
         schedule_mode: row.schedule_mode ?? "window",
@@ -901,7 +907,13 @@ async function getFetchTimeoutMs(): Promise<number> {
 
 
 async function executeUpstreamRequest(job: SgVendorWakeupJob, route: ResolvedWakeupRoute, prompt: string): Promise<ExecutionResult> {
-    const headers = senderService.buildUpstreamHeaders(null, route.vendor, route.upstreamFormat, route.vendorModel);
+    const headers = await senderService.buildUpstreamHeaders(
+        null,
+        route.vendor,
+        route.upstreamFormat,
+        route.vendorModel,
+        headerFingerprintService.normalizeOptionalSetting(job.header_fingerprint),
+    );
     const body = buildRequestBody(route, prompt, job);
     const startTime = Date.now();
     const timeoutMs = await getFetchTimeoutMs();

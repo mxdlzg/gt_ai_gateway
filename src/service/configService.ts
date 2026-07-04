@@ -33,6 +33,7 @@ export enum ConfigKey {
     WAKEUP_NOTIFY_KEEPALIVE_FAILURE = "wakeup_notify_keepalive_failure",
     WAKEUP_NOTIFY_RATE_LIMITED = "wakeup_notify_rate_limited",
     WAKEUP_NOTIFY_SKIPPED = "wakeup_notify_skipped",
+    HEADER_FINGERPRINT_PRESETS = "header_fingerprint_presets",
 }
 
 export class ConfigItem {

@@ -117,9 +117,9 @@ function buildModelsUrl(vendor: SgVendor, source: FetchModelSource): string {
 }
 
 
-function buildModelFetchHeaders(vendor: SgVendor, source: FetchModelSource, requestHeaders: Headers | null): Headers {
+async function buildModelFetchHeaders(vendor: SgVendor, source: FetchModelSource, requestHeaders: Headers | null): Promise<Headers> {
     const requestFormat = source === "anthropic" ? ApiFormat.ANTHROPIC : ApiFormat.OPENAI;
-    const headers = senderService.buildUpstreamHeaders(requestHeaders, vendor, requestFormat);
+    const headers = await senderService.buildUpstreamHeaders(requestHeaders, vendor, requestFormat);
     const bearerToken = vendor.token.startsWith("Bearer ") ? vendor.token : `Bearer ${vendor.token}`;
 
     // Model list endpoints are not as consistently protocol-shaped as chat endpoints.
@@ -181,7 +181,7 @@ async function fetchVendorModels(c: Context) {
 
     const source = resolveFetchModelSource(vendor, c.req.query("source"));
     const modelsUrl = buildModelsUrl(vendor, source);
-    const headers = buildModelFetchHeaders(vendor, source, c.req.raw.headers);
+    const headers = await buildModelFetchHeaders(vendor, source, c.req.raw.headers);
 
     try {
         const response = await senderService.fetchWithProxy(modelsUrl, {

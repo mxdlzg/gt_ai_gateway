@@ -192,6 +192,14 @@
                                 />
                             </a-form-item>
                         </a-col>
+                        <a-col :span="12">
+                            <a-form-item label="请求 Header">
+                                <a-select
+                                    v-model:value="form.header_fingerprint"
+                                    :options="headerFingerprint.wakeupOptions"
+                                />
+                            </a-form-item>
+                        </a-col>
                     </a-row>
                 </div>
 
@@ -517,6 +525,8 @@ import type { WakeupAfterSuccessAction, WakeupJob, WakeupJobPayload, WakeupLog, 
 import { normalizeListResponse } from '@/utils/listResponse';
 import { formatDate, truncateText } from '@/utils/format';
 import { notifyRequestError, notifySuccess } from '@/utils/requestFeedback';
+import headerFingerprint from '@/utils/headerFingerprint';
+import type { HeaderFingerprintValue } from '@/types/vendor';
 
 interface WakeupForm {
     name: string;
@@ -525,6 +535,7 @@ interface WakeupForm {
     model_name: string;
     format: 'openai' | 'anthropic' | 'responses';
     auto_convert: boolean;
+    header_fingerprint: HeaderFingerprintValue;
     mode: WakeupMode;
     enabled: boolean;
     schedule_mode: WakeupScheduleMode;
@@ -626,6 +637,7 @@ const form = reactive<WakeupForm>({
     model_name: '',
     format: 'openai',
     auto_convert: false,
+    header_fingerprint: '',
     mode: 'keepalive',
     enabled: true,
     schedule_mode: 'window',
@@ -731,6 +743,7 @@ async function loadOptions() {
     const [vendorResult, categories] = await Promise.all([
         listVendors({ pageSize: 1000 }),
         getWakeupPromptCategories(),
+        headerFingerprint.loadPresets(),
     ]);
     vendors.value = normalizeListResponse(vendorResult).list;
     promptCategories.value = categories;
@@ -778,6 +791,7 @@ function resetForm() {
     form.model_name = '';
     form.format = 'openai';
     form.auto_convert = false;
+    form.header_fingerprint = '';
     form.mode = 'keepalive';
     form.enabled = true;
     form.schedule_mode = 'window';
@@ -815,6 +829,7 @@ async function openEdit(record: WakeupJob) {
     form.model_name = record.model_name;
     form.format = record.format;
     form.auto_convert = record.auto_convert;
+    form.header_fingerprint = record.header_fingerprint || '';
     form.mode = record.mode;
     form.enabled = record.enabled;
     form.schedule_mode = record.schedule_mode;
@@ -902,6 +917,7 @@ function buildPayload(): WakeupJobPayload | null {
         model_name: form.model_name.trim(),
         format: form.format,
         auto_convert: form.auto_convert,
+        header_fingerprint: form.header_fingerprint,
         mode: form.mode,
         enabled: form.enabled,
         schedule_mode: form.mode === 'keepalive' ? form.schedule_mode : 'window',

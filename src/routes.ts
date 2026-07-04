@@ -100,6 +100,9 @@ app.get("/config.json", authMiddleware.requireAdmin, configController.getConfig)
 app.put("/config.json", authMiddleware.requireAdmin, configController.updateConfig);
 app.post("/config/proxy/test.json", authMiddleware.requireAdmin, configController.testProxy);
 app.post("/config/notification/test.json", authMiddleware.requireAdmin, configController.testNotification);
+app.get("/config/header-fingerprints.json", authMiddleware.requireAdmin, configController.getHeaderFingerprints);
+app.put("/config/header-fingerprints.json", authMiddleware.requireAdmin, configController.updateHeaderFingerprints);
+app.post("/config/header-fingerprints/reset.json", authMiddleware.requireAdmin, configController.resetHeaderFingerprints);
 app.get("/client-config/status.json", authMiddleware.requireAdmin, clientConfigController.status);
 app.get("/client-config/local.json", authMiddleware.requireAdmin, clientConfigController.readLocal);
 app.post("/client-config/create.json", authMiddleware.requireAdmin, clientConfigController.create);

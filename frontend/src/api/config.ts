@@ -36,3 +36,25 @@ export interface NotificationTestResponse {
 export async function testNotification(): Promise<NotificationTestResponse> {
     return request.post('/config/notification/test.json');
 }
+
+export interface HeaderFingerprintPreset {
+    key: string;
+    label: string;
+    headers: Record<string, string>;
+}
+
+export interface HeaderFingerprintSettings {
+    presets: HeaderFingerprintPreset[];
+}
+
+export async function getHeaderFingerprintPresets(): Promise<HeaderFingerprintSettings> {
+    return request.get('/config/header-fingerprints.json');
+}
+
+export async function updateHeaderFingerprintPresets(presets: HeaderFingerprintPreset[]): Promise<HeaderFingerprintSettings> {
+    return request.put('/config/header-fingerprints.json', { presets });
+}
+
+export async function resetHeaderFingerprintPresets(): Promise<HeaderFingerprintSettings> {
+    return request.post('/config/header-fingerprints/reset.json');
+}

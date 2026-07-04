@@ -211,6 +211,7 @@ const rules = {
 };
 
 function open(vendor: Vendor) {
+    void headerFingerprint.loadPresets();
     currentId.value = vendor.id;
     formState.type = vendor.type;
     formState.name = vendor.name;

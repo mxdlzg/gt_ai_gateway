@@ -5,6 +5,7 @@ import senderService from "../service/senderService";
 import ormService from "../service/ormService";
 import desktopNotificationService from "../service/desktopNotificationService";
 import logService from "../service/logService";
+import headerFingerprintService from "../service/headerFingerprintService";
 
 async function getConfig(c: Context) {
     await hostService.getHostKey();
@@ -74,9 +75,28 @@ async function testNotification(c: Context) {
     return c.json(await desktopNotificationService.test());
 }
 
+
+async function getHeaderFingerprints(c: Context) {
+    return c.json({ presets: await headerFingerprintService.getPresets() });
+}
+
+
+async function updateHeaderFingerprints(c: Context) {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(await headerFingerprintService.updatePresets(body.presets));
+}
+
+
+async function resetHeaderFingerprints(c: Context) {
+    return c.json(await headerFingerprintService.resetPresets());
+}
+
 export default {
     getConfig,
+    getHeaderFingerprints,
+    resetHeaderFingerprints,
     testNotification,
     updateConfig,
+    updateHeaderFingerprints,
     testProxy,
 };
