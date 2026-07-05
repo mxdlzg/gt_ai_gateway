@@ -71,6 +71,7 @@ async function status(c: Context) {
         const recordCount = Number(await SgRecord.query().count() || 0);
 
         const startTime = getInstanceStartTime();
+        const bindConfig = await hostService.getBindConfig();
 
         return c.json({
             status: "ok",
@@ -86,6 +87,12 @@ async function status(c: Context) {
                 environment: getEnvironmentName(),
                 version: packageJson.version,
                 apiAddress: getApiAddress(c),
+                bindHost: bindConfig.current_host,
+                bindPort: bindConfig.current_port,
+                configuredHost: bindConfig.host,
+                configuredPort: bindConfig.port,
+                bindRestartRequired: bindConfig.restart_required,
+                bindEnvOverride: bindConfig.env_override,
                 startTime: startTime.toISOString(),
                 uptime: formatUptime(startTime),
             },
@@ -116,6 +123,18 @@ async function logStatus(c: Context) {
     return c.json(await logService.status());
 }
 
+async function bindConfig(c: Context) {
+    return c.json(await hostService.getBindConfig());
+}
+
+async function updateBindConfig(c: Context) {
+    const body = await c.req.json().catch(() => ({}));
+    return c.json(await hostService.saveBindConfig({
+        host: body.host,
+        port: body.port,
+    }));
+}
+
 async function openLogDir(c: Context) {
     return c.json(await logService.openLogDir());
 }
@@ -133,7 +152,9 @@ export default {
     welcome,
     status,
     checkUpdate,
+    bindConfig,
     cleanupLogs,
     logStatus,
     openLogDir,
+    updateBindConfig,
 };

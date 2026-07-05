@@ -1064,10 +1064,24 @@ async function handleOpenLogDir() {
     openingLogDir.value = true;
     try {
         const result = await openLogDir();
-        if (!result.success) {
+        const openedByTauri = result.path
+            ? await openPath(result.path).catch((error: any) => {
+                console.warn('Tauri shell failed to open log folder:', error);
+                return false;
+            })
+            : false;
+
+        if (!result.success && !openedByTauri) {
             message.error(result.error || '打开日志文件夹失败');
             return;
         }
+
+        if (!result.success && openedByTauri) {
+            message.success('已打开日志文件夹');
+            await loadLogStatus();
+            return;
+        }
+
 
         message.success('已打开日志文件夹');
         await loadLogStatus();
@@ -1125,7 +1139,7 @@ async function doCheckUpdate() {
     }
 }
 
-import { openUrl } from '@/utils/platform';
+import { openPath, openUrl } from '@/utils/platform';
 
 async function openUpdateUrl() {
     await openUrl(updateUrl.value);

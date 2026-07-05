@@ -6,6 +6,12 @@ export interface SystemStatusInfo {
     environment?: string;
     version?: string;
     apiAddress?: string;
+    bindHost?: string;
+    bindPort?: string;
+    configuredHost?: string;
+    configuredPort?: string;
+    bindRestartRequired?: boolean;
+    bindEnvOverride?: boolean;
     startTime?: string;
     uptime?: string;
 }
@@ -66,4 +72,16 @@ export interface OpenLogDirResponse {
     success: boolean;
     path?: string;
     error?: string;
+}
+
+export interface BindConfigResponse {
+    host: string;
+    port: string;
+    current_host: string;
+    current_port: string;
+    env_host: string | null;
+    env_port: string | null;
+    restart_required: boolean;
+    env_override: boolean;
+    desktop_config_synced: boolean;
 }

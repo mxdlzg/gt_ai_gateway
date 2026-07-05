@@ -25,3 +25,19 @@ export async function openUrl(url: string): Promise<void> {
     }
     window.open(url, '_blank', 'noopener,noreferrer');
 }
+
+/**
+ * Opens a local path in the system file manager when running in Tauri.
+ *
+ * @param path Local file or directory path
+ * @returns true when Tauri handled the path, false in web mode
+ */
+export async function openPath(path: string): Promise<boolean> {
+    if (!isTauri()) {
+        return false;
+    }
+
+    const { open } = await import('@tauri-apps/plugin-shell');
+    await open(path);
+    return true;
+}

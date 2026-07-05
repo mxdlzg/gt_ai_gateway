@@ -19,6 +19,8 @@ export enum ConfigKey {
     ROUTING_RETRY_STATUS_CODES = "routing_retry_status_codes",
     ROUTING_SELECTION_STRATEGY = "routing_selection_strategy",
     HOST_KEY = "host_key",
+    LOCAL_HOST = "local_host",
+    LOCAL_PORT = "local_port",
     UPSTREAM_PROXY_URL = "upstream_proxy_url",
     TEST_REQUEST_TIMEOUT_MS = "test_request_timeout_ms",
     LOG_FILE_ENABLED = "log_file_enabled",

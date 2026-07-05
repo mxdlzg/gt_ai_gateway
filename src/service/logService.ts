@@ -155,6 +155,24 @@ async function cleanup(options: { older_than_days?: number; keep_latest?: number
 }
 
 
+function spawnDetached(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
+    return new Promise((resolve, reject) => {
+        const child = spawn(command, args, {
+            detached: true,
+            env,
+            stdio: "ignore",
+            windowsHide: true,
+        });
+
+        child.once("error", reject);
+        child.once("spawn", () => {
+            child.unref();
+            resolve();
+        });
+    });
+}
+
+
 async function openLogDir() {
     if (!ormService.isNode) {
         return { success: false, error: "Opening the log folder is only supported in Node mode" };
@@ -163,19 +181,31 @@ async function openLogDir() {
     const logDir = getLogDir();
     await fs.mkdir(logDir, { recursive: true });
 
-    const command = process.platform === "win32"
-        ? "explorer.exe"
-        : process.platform === "darwin"
-            ? "open"
-            : "xdg-open";
+    try {
+        if (process.platform === "win32") {
+            await spawnDetached(
+                "powershell.exe",
+                [
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    "Start-Process -FilePath explorer.exe -ArgumentList @($env:GT_LOG_DIR)",
+                ],
+                { ...process.env, GT_LOG_DIR: logDir },
+            );
+        } else {
+            await spawnDetached(process.platform === "darwin" ? "open" : "xdg-open", [logDir]);
+        }
 
-    spawn(command, [logDir], {
-        detached: true,
-        stdio: "ignore",
-        windowsHide: true,
-    }).unref();
-
-    return { success: true, path: logDir };
+        return { success: true, path: logDir };
+    } catch (error) {
+        return {
+            success: false,
+            path: logDir,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
 }
 
 

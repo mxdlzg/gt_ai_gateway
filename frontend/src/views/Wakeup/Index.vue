@@ -95,7 +95,22 @@
                     <div v-if="record.last_error" class="table-sub error-text">{{ record.last_error }}</div>
                 </template>
                 <template v-else-if="column.key === 'next_run_at'">
-                    <div>{{ record.next_run_at ? formatDate(record.next_run_at) : '-' }}</div>
+                    <div class="next-run-cell">
+                        <div :class="['next-run-main', getNextRunState(record).className]">
+                            {{ getNextRunState(record).label }}
+                        </div>
+                        <a-progress
+                            v-if="getNextRunState(record).percent !== null"
+                            :percent="getNextRunState(record).percent"
+                            :show-info="false"
+                            size="small"
+                            :status="getNextRunState(record).progressStatus"
+                        />
+                        <div class="table-sub">{{ getNextRunState(record).detail }}</div>
+                        <div v-if="getKeepaliveUntilText(record)" class="table-sub">
+                            {{ getKeepaliveUntilText(record) }}
+                        </div>
+                    </div>
                     <div class="table-sub">今日 {{ record.run_count }} 次</div>
                 </template>
                 <template v-else-if="column.key === 'action'">
@@ -501,7 +516,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue';
 import type { TableColumnsType, TablePaginationConfig } from 'ant-design-vue';
 import { Modal } from 'ant-design-vue/es';
 import { DeleteOutlined, FileTextOutlined, PlusOutlined } from '@ant-design/icons-vue';
@@ -558,8 +573,18 @@ interface WakeupForm {
     temperature: number;
 }
 
+interface NextRunState {
+    label: string;
+    detail: string;
+    percent: number | null;
+    className: string;
+    progressStatus: 'normal' | 'exception' | 'success' | 'active';
+}
+
 const loading = ref(false);
 const jobs = ref<WakeupJob[]>([]);
+const nowMs = ref(Date.now());
+let clockTimer: number | null = null;
 const pagination = reactive({
     current: 1,
     pageSize: 10,
@@ -667,7 +692,7 @@ const columns: TableColumnsType<WakeupJob> = [
     { title: '目标', key: 'target', width: 220 },
     { title: '窗口 / 间隔', key: 'window', width: 170 },
     { title: '上次状态', key: 'last_status', width: 180 },
-    { title: '下次运行', key: 'next_run_at', width: 190 },
+    { title: '下一次动作', key: 'next_run_at', width: 230 },
     { title: '操作', key: 'action', width: 170, fixed: 'right' as const },
 ];
 
@@ -731,8 +756,18 @@ const promptTemplateCounts = computed<Record<WakeupPromptCategory, number>>(() =
 }));
 
 onMounted(() => {
+    clockTimer = window.setInterval(() => {
+        nowMs.value = Date.now();
+    }, 1000);
     void loadOptions();
     void loadJobs();
+});
+
+onUnmounted(() => {
+    if (clockTimer !== null) {
+        window.clearInterval(clockTimer);
+        clockTimer = null;
+    }
 });
 
 function filterOption(input: string, option: { label: string }) {
@@ -1189,6 +1224,95 @@ function formatInterval(record: WakeupJob): string {
     }
     return parts.join('，');
 }
+
+function parseTimeMs(value?: string | null): number | null {
+    if (!value) return null;
+    const normalized = value.includes('T') ? value : value.replace(' ', 'T');
+    const parsed = new Date(normalized).getTime();
+    return Number.isFinite(parsed) ? parsed : null;
+}
+
+function clampPercent(value: number): number {
+    return Math.max(0, Math.min(100, Math.round(value)));
+}
+
+function formatDurationText(ms: number): string {
+    const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (days > 0) return `${days}天 ${hours}小时`;
+    if (hours > 0) return `${hours}小时 ${minutes}分钟`;
+    if (minutes > 0) return `${minutes}分钟 ${seconds}秒`;
+    return `${seconds}秒`;
+}
+
+function getNextRunProgress(record: WakeupJob, nextMs: number): number | null {
+    const lastRunMs = parseTimeMs(record.last_run_at);
+    if (!lastRunMs || lastRunMs >= nextMs) {
+        return null;
+    }
+
+    const total = nextMs - lastRunMs;
+    if (total <= 0) {
+        return null;
+    }
+
+    return clampPercent(((nowMs.value - lastRunMs) / total) * 100);
+}
+
+function getNextRunState(record: WakeupJob): NextRunState {
+    if (!record.enabled) {
+        return {
+            label: '已停用',
+            detail: '不会自动运行',
+            percent: null,
+            className: 'muted',
+            progressStatus: 'normal',
+        };
+    }
+
+    const nextMs = parseTimeMs(record.next_run_at);
+    if (!nextMs) {
+        return {
+            label: '未安排',
+            detail: '暂无下一次运行时间',
+            percent: null,
+            className: 'muted',
+            progressStatus: 'normal',
+        };
+    }
+
+    const remaining = nextMs - nowMs.value;
+    if (remaining <= 0) {
+        return {
+            label: '等待调度',
+            detail: `计划 ${formatDate(record.next_run_at!)}`,
+            percent: 100,
+            className: 'due',
+            progressStatus: 'exception',
+        };
+    }
+
+    return {
+        label: `${formatDurationText(remaining)} 后`,
+        detail: `计划 ${formatDate(record.next_run_at!)}`,
+        percent: getNextRunProgress(record, nextMs),
+        className: record.last_status === 'rate_limited' ? 'cooldown' : '',
+        progressStatus: record.last_status === 'rate_limited' ? 'exception' : 'active',
+    };
+}
+
+function getKeepaliveUntilText(record: WakeupJob): string {
+    const untilMs = parseTimeMs(record.keepalive_until_at);
+    if (!untilMs || untilMs <= nowMs.value) {
+        return '';
+    }
+
+    return `保活剩余 ${formatDurationText(untilMs - nowMs.value)}，到 ${formatDate(record.keepalive_until_at!)}`;
+}
 </script>
 
 <style scoped>
@@ -1243,6 +1367,35 @@ function formatInterval(record: WakeupJob): string {
     margin-left: 6px;
     color: var(--text-secondary);
     font-size: 12px;
+}
+
+.next-run-cell {
+    min-width: 180px;
+}
+
+.next-run-main {
+    color: var(--text-primary);
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+.next-run-main.muted {
+    color: var(--text-secondary);
+    font-weight: 400;
+}
+
+.next-run-main.due {
+    color: #cf1322;
+}
+
+.next-run-main.cooldown {
+    color: #d46b08;
+}
+
+.next-run-cell :deep(.ant-progress) {
+    display: block;
+    margin: 2px 0 0;
+    line-height: 1;
 }
 
 .error-text {

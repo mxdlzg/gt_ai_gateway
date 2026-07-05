@@ -104,7 +104,8 @@ async function startServer() {
     wakeupService.startScheduler();
 
     // 启动服务器
-    const port = parseInt(hostService.getLocalPort(), 10);
+    const bindConfig = await hostService.loadBindConfig();
+    const port = parseInt(bindConfig.port, 10);
 
     // 构建环境变量
     const bindings: Env = {
@@ -162,7 +163,7 @@ async function startServer() {
         app.use("/data_viewer/*", serveStatic({ root: distPath }));
     }
 
-    const hostname = hostService.getLocalHost();
+    const hostname = bindConfig.host;
 
     const server = serve({
         fetch: (request) => app.fetch(request, bindings),

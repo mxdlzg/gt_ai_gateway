@@ -93,6 +93,8 @@ app.onError((err, c) => {
 app.get("/welcome", systemController.welcome);
 app.get("/status.json", authMiddleware.requireAdmin, systemController.status);
 app.get("/update.json", authMiddleware.requireAdmin, systemController.checkUpdate);
+app.get("/system/bind-config.json", authMiddleware.requireAdmin, systemController.bindConfig);
+app.put("/system/bind-config.json", authMiddleware.requireAdmin, systemController.updateBindConfig);
 app.get("/system/logs/status.json", authMiddleware.requireAdmin, systemController.logStatus);
 app.post("/system/logs/open.json", authMiddleware.requireAdmin, systemController.openLogDir);
 app.post("/system/logs/cleanup.json", authMiddleware.requireAdmin, systemController.cleanupLogs);

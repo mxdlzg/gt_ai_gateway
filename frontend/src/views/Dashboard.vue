@@ -116,7 +116,15 @@
         </div>
 
         <!-- 系统信息 -->
-        <a-card title="系统信息" style="margin-top: 16px" :loading="loading">
+        <a-card style="margin-top: 16px" :loading="loading">
+            <template #title>
+                <div class="card-title-row">
+                    <span>系统信息</span>
+                    <a-button size="small" @click="openBindConfigDialog">
+                        配置监听
+                    </a-button>
+                </div>
+            </template>
             <div class="system-info-grid">
                 <div class="system-info-item">
                     <span class="system-info-label">环境</span>
@@ -137,6 +145,24 @@
                     </span>
                 </div>
                 <div class="system-info-item">
+                    <span class="system-info-label">当前监听</span>
+                    <span class="system-info-value">
+                        {{ currentBindText }}
+                    </span>
+                </div>
+                <div class="system-info-item">
+                    <span class="system-info-label">下次启动</span>
+                    <span class="system-info-value">
+                        {{ configuredBindText }}
+                        <a-tag v-if="systemInfo.bindRestartRequired" color="orange" class="inline-tag">
+                            待重启
+                        </a-tag>
+                        <a-tag v-if="systemInfo.bindEnvOverride" color="blue" class="inline-tag">
+                            环境变量覆盖
+                        </a-tag>
+                    </span>
+                </div>
+                <div class="system-info-item">
                     <span class="system-info-label">运行时间</span>
                     <span class="system-info-value">
                         {{ systemInfo.uptime || '-' }}
@@ -144,6 +170,37 @@
                 </div>
             </div>
         </a-card>
+
+        <a-modal
+            v-model:open="bindConfigOpen"
+            title="配置监听地址"
+            :confirm-loading="savingBindConfig"
+            @ok="saveBindConfig"
+            @cancel="bindConfigOpen = false"
+        >
+            <a-form layout="vertical">
+                <a-form-item label="绑定地址">
+                    <a-input
+                        v-model:value="bindConfigForm.host"
+                        placeholder="例如：127.0.0.1 或 0.0.0.0"
+                    />
+                </a-form-item>
+                <a-form-item label="绑定端口">
+                    <a-input-number
+                        v-model:value="bindConfigForm.port"
+                        :min="1"
+                        :max="65535"
+                        :precision="0"
+                        style="width: 100%"
+                    />
+                </a-form-item>
+                <a-alert
+                    type="info"
+                    show-icon
+                    message="监听地址和端口会在服务重启后生效；如果启动环境设置了 HOST 或 PORT，会优先使用环境变量。"
+                />
+            </a-form>
+        </a-modal>
 
         <!-- 最近请求记录 -->
         <a-card
@@ -171,10 +228,11 @@ import {
     UserOutlined,
     RobotOutlined,
 } from '@ant-design/icons-vue';
+import { message } from 'ant-design-vue/es';
 import { listUsers } from '@/api/user';
 import { listVendors } from '@/api/vendor';
 import { listModels } from '@/api/model';
-import { status } from '@/api/system';
+import { getBindConfig, status, updateBindConfig } from '@/api/system';
 import { useStatsStore } from '@/stores/stats';
 import { useAutoRefresh } from '@/composables/useAutoRefresh';
 import { normalizeListResponse } from '@/utils/listResponse';
@@ -197,11 +255,31 @@ const systemInfo = ref({
     environment: '',
     version: '',
     apiAddress: '',
+    bindHost: '',
+    bindPort: '',
+    configuredHost: '',
+    configuredPort: '',
+    bindRestartRequired: false,
+    bindEnvOverride: false,
     startTime: '',
     uptime: '',
 });
+const bindConfigOpen = ref(false);
+const savingBindConfig = ref(false);
+const bindConfigForm = ref({
+    host: '127.0.0.1',
+    port: 8720,
+});
 
 const lastUpdated = computed(() => statsStore.lastUpdated);
+const currentBindText = computed(() => {
+    if (!systemInfo.value.bindHost || !systemInfo.value.bindPort) return '-';
+    return `${systemInfo.value.bindHost}:${systemInfo.value.bindPort}`;
+});
+const configuredBindText = computed(() => {
+    if (!systemInfo.value.configuredHost || !systemInfo.value.configuredPort) return currentBindText.value;
+    return `${systemInfo.value.configuredHost}:${systemInfo.value.configuredPort}`;
+});
 
 // 保存服务器启动时间
 const serverStartTime = ref<Date | null>(null);
@@ -294,6 +372,12 @@ async function loadSystemData() {
                 environment: systemStatusData.system?.environment || '',
                 version: systemStatusData.system?.version || '',
                 apiAddress: systemStatusData.system?.apiAddress || '',
+                bindHost: systemStatusData.system?.bindHost || '',
+                bindPort: systemStatusData.system?.bindPort || '',
+                configuredHost: systemStatusData.system?.configuredHost || '',
+                configuredPort: systemStatusData.system?.configuredPort || '',
+                bindRestartRequired: systemStatusData.system?.bindRestartRequired === true,
+                bindEnvOverride: systemStatusData.system?.bindEnvOverride === true,
                 startTime: startTimeStr,
                 uptime: serverStartTime.value ? formatUptime(serverStartTime.value) : '',
             };
@@ -336,6 +420,64 @@ function formatUptime(startTime: Date): string {
 function updateUptime() {
     if (serverStartTime.value) {
         systemInfo.value.uptime = formatUptime(serverStartTime.value);
+    }
+}
+
+async function openBindConfigDialog(): Promise<void> {
+    try {
+        const config = await getBindConfig();
+        bindConfigForm.value = {
+            host: config.host || '127.0.0.1',
+            port: Number(config.port || 8720),
+        };
+        bindConfigOpen.value = true;
+    } catch {
+        bindConfigForm.value = {
+            host: systemInfo.value.configuredHost || systemInfo.value.bindHost || '127.0.0.1',
+            port: Number(systemInfo.value.configuredPort || systemInfo.value.bindPort || 8720),
+        };
+        bindConfigOpen.value = true;
+    }
+}
+
+function validateBindConfig(): string | null {
+    const host = bindConfigForm.value.host.trim();
+    const port = Number(bindConfigForm.value.port);
+    if (!host || host.includes('://') || host.includes('/') || host.includes('\\')) {
+        return '绑定地址不能包含协议或路径';
+    }
+    if (!Number.isInteger(port) || port < 1 || port > 65535) {
+        return '端口必须是 1-65535 的整数';
+    }
+    return null;
+}
+
+async function saveBindConfig(): Promise<void> {
+    const validationError = validateBindConfig();
+    if (validationError) {
+        message.error(validationError);
+        return;
+    }
+
+    savingBindConfig.value = true;
+    try {
+        const result = await updateBindConfig({
+            host: bindConfigForm.value.host.trim(),
+            port: Number(bindConfigForm.value.port),
+        });
+        systemInfo.value.configuredHost = result.host;
+        systemInfo.value.configuredPort = result.port;
+        systemInfo.value.bindRestartRequired = result.restart_required;
+        systemInfo.value.bindEnvOverride = result.env_override;
+        bindConfigOpen.value = false;
+        message.success(result.restart_required
+            ? '监听配置已保存，重启服务后生效'
+            : '监听配置已保存');
+        await loadSystemData();
+    } catch (error: any) {
+        message.error(error?.message || '保存监听配置失败');
+    } finally {
+        savingBindConfig.value = false;
     }
 }
 
@@ -395,6 +537,13 @@ function formatTime(date: Date): string {
     margin-top: 16px;
 }
 
+.card-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
 .status-grid {
     display: grid;
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -437,6 +586,10 @@ function formatTime(date: Date): string {
 .system-info-value {
     color: var(--text-primary);
     font-weight: 500;
+}
+
+.inline-tag {
+    margin-left: 8px;
 }
 
 @media (max-width: 768px) {
