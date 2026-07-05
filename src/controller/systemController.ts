@@ -25,12 +25,31 @@ function getInstanceStartTime(): Date {
 }
 
 
+function getConnectHost(bindHost: string): string {
+    const host = bindHost.trim();
+    if (host === "0.0.0.0" || host === "::" || host === "[::]") {
+        return "127.0.0.1";
+    }
+
+    return host;
+}
+
+
+function formatUrlHost(host: string): string {
+    if (host.includes(":") && !host.startsWith("[") && !host.endsWith("]")) {
+        return `[${host}]`;
+    }
+
+    return host;
+}
+
+
 function getApiAddress(c: Context): string {
     if (ormService.mode === "worker") {
         return new URL(c.req.url).origin;
     }
 
-    const hostname = hostService.getLocalHost();
+    const hostname = formatUrlHost(getConnectHost(hostService.getLocalHost()));
     const port = hostService.getLocalPort();
     return `http://${hostname}:${port}`;
 }

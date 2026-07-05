@@ -26,6 +26,25 @@ struct BackendUrl(String);
 struct AuthToken(String);
 
 
+fn get_connect_host(bind_host: &str) -> String {
+    let host = bind_host.trim();
+    if host == "0.0.0.0" || host == "::" || host == "[::]" {
+        return "127.0.0.1".to_string();
+    }
+
+    host.to_string()
+}
+
+
+fn format_url_host(host: &str) -> String {
+    if host.contains(':') && !host.starts_with('[') && !host.ends_with(']') {
+        return format!("[{}]", host);
+    }
+
+    host.to_string()
+}
+
+
 /// Tauri 命令：返回后端服务的实际 URL
 #[tauri::command]
 fn get_backend_url(state: tauri::State<BackendUrl>) -> String {
@@ -275,7 +294,8 @@ pub fn run() {
 
 
             // 存储后端 URL 和 auth token，供前端查询
-            let backend_url = format!("http://{}:{}", config.host, config.port);
+            let connect_host = format_url_host(&get_connect_host(&config.host));
+            let backend_url = format!("http://{}:{}", connect_host, config.port);
             app.manage(BackendUrl(backend_url));
             app.manage(AuthToken(config.root_token.clone()));
 
